@@ -36,47 +36,45 @@
 <body class="text-[#ece8e1] min-h-screen flex flex-col pb-20 selection:bg-[#ff4655] selection:text-white">
 
   <!-- Header Superior -->
-  <header class="sticky top-0 z-40 bg-[#090e14]/90 backdrop-blur-md border-b border-[#1e2c3c] px-4 py-3 shadow-lg">
-    <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+  <header class="sticky top-0 z-40 bg-[#090e14]/95 backdrop-blur-md border-b border-[#1e2c3c] px-3 sm:px-4 py-2.5 shadow-lg w-full">
+    <div class="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-3 w-full min-w-0">
       
       <!-- Marca / Logo -->
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded bg-[#ff4655] flex items-center justify-center font-tactical font-bold text-lg text-white shadow-[0_0_15px_rgba(255,70,85,0.4)]">
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink-0">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded bg-[#ff4655] flex items-center justify-center font-tactical font-bold text-base sm:text-lg text-white shadow-[0_0_15px_rgba(255,70,85,0.4)] flex-shrink-0">
           V
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-tactical font-bold text-white tracking-wider flex items-center gap-1.5">
-              VALORANT <span class="text-[#ff4655]">LINEUP</span>
-            </h1>
-          </div>
-          <p class="text-[11px] text-gray-400 -mt-1 hidden sm:block">Planejamento Tático e Escalação de Agentes</p>
+        <div class="min-w-0">
+          <h1 class="text-sm sm:text-lg font-tactical font-bold text-white tracking-wider flex items-center gap-1 leading-tight truncate">
+            VALORANT <span class="text-[#ff4655]">LINEUP</span>
+          </h1>
+          <p class="text-[10px] text-gray-400 hidden md:block leading-none">Planejamento Tático e Escalação</p>
         </div>
       </div>
 
       <!-- Status de Conexão e Ações de Topo -->
-      <div class="flex items-center gap-2 sm:gap-3">
+      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <!-- Status Pill -->
-        <button id="connection-status-pill" onclick="window.openFirebaseModal()" title="Clique para configurar o Firebase" class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/60 cursor-pointer transition">
-          <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-          <span id="connection-status-text" class="text-[11px] sm:text-xs">Modo Local</span>
+        <button id="connection-status-pill" onclick="window.openFirebaseModal()" title="Clique para configurar o Firebase" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/60 cursor-pointer transition flex-shrink-0">
+          <span id="connection-status-dot" class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
+          <span id="connection-status-text" class="whitespace-nowrap">Modo Local</span>
         </button>
 
         <!-- Botão Configurar Nuvem -->
-        <button onclick="window.openFirebaseModal()" title="Configuração de Nuvem em Tempo Real" class="p-2 rounded bg-[#16202c] border border-[#253549] text-gray-300 hover:text-white hover:border-[#ff4655] transition text-xs flex items-center gap-1.5">
+        <button onclick="window.openFirebaseModal()" title="Configuração de Nuvem em Tempo Real" class="p-1.5 sm:p-2 rounded bg-[#16202c] border border-[#253549] text-gray-300 hover:text-white hover:border-[#ff4655] transition text-xs flex items-center gap-1 flex-shrink-0">
           <svg class="w-4 h-4 text-[#ff4655]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
           </svg>
-          <span class="hidden md:inline font-tactical">Sincronização</span>
+          <span class="hidden md:inline font-tactical">Nuvem</span>
         </button>
 
         <!-- Botão WhatsApp Principal -->
-        <button onclick="window.openWhatsappModal()" class="btn-tactical bg-[#25D366] hover:bg-[#20ba59] text-black font-bold px-3 py-1.5 text-xs sm:text-sm flex items-center gap-1.5 shadow-md">
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+        <button onclick="window.openWhatsappModal()" class="btn-tactical bg-[#25D366] hover:bg-[#20ba59] text-black font-bold px-2.5 sm:px-3 py-1 text-xs sm:text-sm flex items-center gap-1 shadow-md flex-shrink-0">
+          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current flex-shrink-0" viewBox="0 0 24 24">
             <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
           </svg>
-          <span class="font-tactical tracking-wide">WhatsApp</span>
+          <span class="font-tactical tracking-wide hidden xs:inline">WhatsApp</span>
         </button>
       </div>
 
@@ -84,56 +82,59 @@
   </header>
 
   <!-- Banner Informativo da Equipe -->
-  <section class="max-w-6xl mx-auto px-4 mt-4 w-full">
-    <div class="tactical-card rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-[#1e2c3c]">
-      <div class="flex items-center gap-3 w-full sm:w-auto">
-        <div class="p-2 rounded bg-[#182433] text-[#ff4655]">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <section class="max-w-6xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4 w-full">
+    <div class="tactical-card rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 border border-[#1e2c3c]">
+      <div class="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto min-w-0">
+        <div class="p-1.5 sm:p-2 rounded bg-[#182433] text-[#ff4655] flex-shrink-0">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
           </svg>
         </div>
-        <div class="flex-1">
-          <label class="text-[10px] uppercase font-tactical tracking-wider text-gray-400">Nome do Time / Campeonato</label>
+        <div class="flex-1 min-w-0">
+          <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block">Nome do Time / Campeonato</label>
           <input id="team-name-input" type="text" value="Lineup Feminina Valorant" 
-                 class="w-full bg-transparent font-tactical text-base sm:text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-[#ff4655] transition py-0.5" 
+                 class="w-full bg-transparent font-tactical text-sm sm:text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-[#ff4655] transition py-0.5 truncate" 
                  placeholder="Digite o nome da equipe...">
         </div>
       </div>
 
-      <div class="flex items-center gap-2 w-full sm:w-auto justify-end text-xs text-gray-400">
-        <span class="inline-block w-2 h-2 rounded-full bg-[#ff4655]"></span>
-        <span>5 Jogadoras por mapa • Titular & Reserva</span>
+      <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end text-[11px] text-gray-400 pt-1 sm:pt-0 border-t border-gray-800 sm:border-0">
+        <span class="inline-flex items-center gap-1.5">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#ff4655]"></span>
+          <span>5 Jogadoras por mapa</span>
+        </span>
+        <span class="text-gray-500">• Titular & Reserva</span>
       </div>
     </div>
   </section>
 
   <!-- Navegação de Mapas (Tabs Deslizantes) -->
-  <section class="max-w-6xl mx-auto px-4 mt-4 w-full">
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="text-xs uppercase font-tactical font-semibold tracking-widest text-gray-400">Selecione o Mapa:</h2>
-      <span class="text-[11px] text-gray-400 sm:hidden">Deslize para o lado &rarr;</span>
+  <section class="max-w-6xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4 w-full">
+    <div class="flex items-center justify-between mb-1.5">
+      <h2 class="text-[11px] sm:text-xs uppercase font-tactical font-semibold tracking-widest text-gray-400">Mapas Oficiais:</h2>
+      <span class="text-[10px] text-gray-500 sm:hidden">Deslize para ver todos &rarr;</span>
     </div>
     
-    <div id="map-tabs-list" class="map-tabs-container flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+    <div id="map-tabs-list" class="map-tabs-container flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 -mx-1 px-1 w-full max-w-full">
       <!-- Injetado dinamicamente via JS -->
     </div>
   </section>
 
   <!-- Conteúdo Principal do Mapa Ativo -->
-  <main class="max-w-6xl mx-auto px-4 mt-2 w-full flex-1">
+  <main class="max-w-6xl mx-auto px-3 sm:px-4 mt-1 sm:mt-2 w-full flex-1 min-w-0">
     
     <!-- Banner do Mapa Atual -->
-    <div id="active-map-banner" class="tactical-card rounded-lg overflow-hidden border border-[#233547] relative mb-6">
-      <div id="map-banner-img" class="h-32 sm:h-40 w-full bg-cover bg-center transition-all duration-500 relative">
-        <div class="absolute inset-0 bg-gradient-to-r from-[#090e14] via-[#090e14]/85 to-transparent flex items-center px-4 sm:px-6">
-          <div class="flex items-center gap-3.5 sm:gap-5">
-            <img id="map-icon-thumb" src="" alt="Mapa" class="w-20 h-12 sm:w-28 sm:h-16 object-cover rounded-lg border-2 border-[#ff4655]/40 shadow-2xl flex-shrink-0">
-            <div>
-              <span id="map-tagline" class="text-[10px] sm:text-xs uppercase font-tactical text-[#ff4655] font-bold tracking-widest flex items-center gap-1.5">
+    <div id="active-map-banner" class="tactical-card rounded-lg overflow-hidden border border-[#233547] relative mb-4 sm:mb-6 w-full">
+      <div id="map-banner-img" class="h-28 sm:h-36 w-full bg-cover bg-center transition-all duration-500 relative">
+        <div class="absolute inset-0 bg-gradient-to-r from-[#090e14] via-[#090e14]/90 to-transparent flex items-center px-3.5 sm:px-6">
+          <div class="flex items-center gap-3 sm:gap-5 min-w-0">
+            <img id="map-icon-thumb" src="" alt="Mapa" class="w-16 h-10 sm:w-24 sm:h-14 object-cover rounded-lg border border-[#ff4655]/40 shadow-xl flex-shrink-0">
+            <div class="min-w-0">
+              <span id="map-tagline" class="text-[9px] sm:text-xs uppercase font-tactical text-[#ff4655] font-bold tracking-widest flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#ff4655] animate-pulse"></span>
-                Mapa Oficial
+                Mapa Ativo
               </span>
-              <h2 id="active-map-title" class="text-3xl sm:text-4xl font-hero font-bold text-white tracking-wide leading-none my-0.5">ASCENT</h2>
+              <h2 id="active-map-title" class="text-2xl sm:text-4xl font-hero font-bold text-white tracking-wide leading-none my-0.5 truncate">ASCENT</h2>
               <p class="text-xs text-gray-300 max-w-md hidden sm:block">Defina os agentes titulares e reservas das 5 jogadoras ou carregue uma comp meta.</p>
             </div>
           </div>
@@ -182,23 +183,23 @@
   </main>
 
   <!-- Barra Fixa Inferior Mobile para Compartilhamento Rápido -->
-  <div class="fixed bottom-0 left-0 right-0 z-30 bg-[#090e14]/95 backdrop-blur-md border-t border-[#1e2c3c] px-4 py-2.5 flex items-center justify-between max-w-6xl mx-auto">
-    <div class="text-xs text-gray-300">
-      <span class="text-gray-400 font-tactical">Mapa:</span> <b id="bottom-bar-map-name" class="text-white font-tactical">Ascent</b>
+  <div class="fixed bottom-0 left-0 right-0 z-30 bg-[#090e14]/95 backdrop-blur-md border-t border-[#1e2c3c] px-3 sm:px-4 py-2 safe-bottom-bar flex items-center justify-between max-w-6xl mx-auto">
+    <div class="text-xs text-gray-300 truncate min-w-0 mr-2">
+      <span class="text-gray-400 font-tactical text-[11px]">Mapa:</span> <b id="bottom-bar-map-name" class="text-white font-tactical">Ascent</b>
     </div>
-    <div class="flex items-center gap-2">
-      <button onclick="window.openWhatsappModal()" class="btn-tactical bg-[#25D366] hover:bg-[#20ba59] text-black font-bold px-4 py-1.5 text-xs sm:text-sm flex items-center gap-2 shadow-lg">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <button onclick="window.openWhatsappModal()" class="btn-tactical bg-[#25D366] hover:bg-[#20ba59] text-black font-bold px-3 py-1.5 text-xs sm:text-sm flex items-center gap-1.5 shadow-lg flex-shrink-0">
+        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current flex-shrink-0" viewBox="0 0 24 24">
           <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
         </svg>
-        <span>Exportar WhatsApp</span>
+        <span>WhatsApp</span>
       </button>
     </div>
   </div>
 
   <!-- MODAL: Escolha de Agente (Fácil e Rápido) -->
-  <div id="agent-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-3">
-    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl max-w-md w-full p-4 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
+  <div id="agent-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
+    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-md mx-auto p-3 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
       
       <!-- Cabeçalho do Modal -->
       <div class="flex items-center justify-between pb-3 border-b border-[#1e2c3c]">
@@ -242,22 +243,22 @@
   </div>
 
   <!-- MODAL: Configuração do Firebase Realtime Database -->
-  <div id="firebase-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-3">
-    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl max-w-lg w-full p-5 shadow-2xl animate-fade-in flex flex-col max-h-[90vh] overflow-y-auto">
+  <div id="firebase-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
+    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-lg mx-auto p-3.5 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[88vh] overflow-y-auto">
       
-      <div class="flex items-center justify-between pb-3 border-b border-[#1e2c3c]">
-        <div class="flex items-center gap-2">
-          <div class="p-2 rounded bg-[#ff4655]/20 text-[#ff4655]">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="p-1.5 sm:p-2 rounded bg-[#ff4655]/20 text-[#ff4655] flex-shrink-0">
+            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
           </div>
-          <div>
-            <h3 class="text-base font-tactical font-bold text-white">SINCRONIZAÇÃO EM TEMPO REAL</h3>
-            <p class="text-[11px] text-gray-400">Conecte o Firebase para atualizar no celular de todas ao vivo</p>
+          <div class="min-w-0">
+            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight truncate">SINCRONIZAÇÃO EM TEMPO REAL</h3>
+            <p class="text-[10px] text-gray-400 leading-none">Atualização ao vivo entre as jogadoras</p>
           </div>
         </div>
-        <button onclick="window.closeFirebaseModal()" class="text-gray-400 hover:text-white">
+        <button onclick="window.closeFirebaseModal()" class="text-gray-400 hover:text-white p-1">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -265,39 +266,35 @@
       </div>
 
       <!-- Passo a Passo Rápido -->
-      <div class="mt-4 bg-[#141e2b] p-3.5 rounded-lg border border-[#203043] text-xs space-y-2 text-gray-300">
+      <div class="mt-3 bg-[#141e2b] p-2.5 sm:p-3.5 rounded-lg border border-[#203043] text-[11px] sm:text-xs space-y-1.5 text-gray-300">
         <b class="text-white flex items-center gap-1">
-          <span>⚡</span> Como ativar em 2 minutos (100% Grátis):
+          <span>⚡</span> Ativar em 2 minutos (100% Grátis):
         </b>
         <ol class="list-decimal pl-4 space-y-1 text-gray-400">
-          <li>Acesse <a href="https://console.firebase.google.com" target="_blank" class="text-[#ff4655] underline">console.firebase.google.com</a> e clique em <b>Criar Projeto</b>.</li>
-          <li>No menu lateral, vá em <b>Build > Realtime Database</b> e clique em <b>Criar Banco de Dados</b> (escolha <i>Modo de Teste</i>).</li>
-          <li>Vá nas <b>Configurações do Projeto (engrenagem)</b>, desça até "Seus Aplicativos", crie um app Web e copie as credenciais.</li>
+          <li>Acesse <a href="https://console.firebase.google.com" target="_blank" class="text-[#ff4655] underline">console.firebase.google.com</a>.</li>
+          <li>Vá em <b>Build > Realtime Database</b> e clique em <b>Criar Banco de Dados</b>.</li>
+          <li>Vá em <b>Regras (Rules)</b> e defina <code>".read": true, ".write": true</code>.</li>
         </ol>
       </div>
 
       <!-- Área para Colar a Configuração -->
-      <div class="mt-4 space-y-2">
-        <label class="text-xs font-semibold text-gray-300 block">Cole seu objeto de configuração do Firebase (ou JSON):</label>
-        <textarea id="firebase-config-textarea" rows="6" 
+      <div class="mt-3 space-y-1.5">
+        <label class="text-[11px] font-semibold text-gray-300 block">Cole a configuração do Firebase (ou JSON):</label>
+        <textarea id="firebase-config-textarea" rows="4" 
                   placeholder='const firebaseConfig = {
-  apiKey: "AIzaSy...",
-  authDomain: "seu-projeto.firebaseapp.com",
-  databaseURL: "https://seu-projeto-default-rtdb.firebaseio.com",
-  projectId: "seu-projeto",
-  storageBucket: "seu-projeto.appspot.com",
-  messagingSenderId: "...",
-  appId: "..."
+  apiKey: "...",
+  databaseURL: "...",
+  projectId: "..."
 };'
-                  class="w-full bg-[#0c1219] border border-[#233547] rounded p-3 text-xs font-mono text-emerald-400 focus:outline-none focus:border-[#ff4655]"></textarea>
+                  class="w-full bg-[#0c1219] border border-[#233547] rounded p-2 text-xs font-mono text-emerald-400 focus:outline-none focus:border-[#ff4655]"></textarea>
       </div>
 
       <!-- Ações do Modal -->
-      <div class="mt-4 pt-3 border-t border-[#1e2c3c] flex flex-wrap gap-2 justify-between items-center">
-        <button onclick="window.clearFirebaseConfiguration()" class="text-xs text-red-400 hover:text-red-300">Desconectar / Limpar</button>
+      <div class="mt-3 pt-2.5 border-t border-[#1e2c3c] flex flex-wrap gap-2 justify-between items-center">
+        <button onclick="window.clearFirebaseConfiguration()" class="text-xs text-red-400 hover:text-red-300 py-1">Desconectar</button>
         <div class="flex gap-2">
           <button onclick="window.closeFirebaseModal()" class="px-3 py-1.5 bg-[#182433] hover:bg-[#203043] text-xs text-gray-300 rounded">Cancelar</button>
-          <button onclick="window.applyFirebaseConfigFromInput()" class="btn-tactical px-4 py-1.5 bg-[#ff4655] hover:bg-[#e03b49] text-xs font-bold text-white rounded">Salvar e Conectar</button>
+          <button onclick="window.applyFirebaseConfigFromInput()" class="btn-tactical px-3.5 py-1.5 bg-[#ff4655] hover:bg-[#e03b49] text-xs font-bold text-white rounded">Salvar e Conectar</button>
         </div>
       </div>
 
@@ -305,22 +302,22 @@
   </div>
 
   <!-- MODAL: Exportar e Copiar Resumo para WhatsApp -->
-  <div id="whatsapp-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-3">
-    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl max-w-lg w-full p-5 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
+  <div id="whatsapp-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
+    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-lg mx-auto p-3.5 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
       
-      <div class="flex items-center justify-between pb-3 border-b border-[#1e2c3c]">
-        <div class="flex items-center gap-2">
-          <div class="p-2 rounded bg-[#25D366]/20 text-[#25D366]">
-            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+      <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="p-1.5 sm:p-2 rounded bg-[#25D366]/20 text-[#25D366] flex-shrink-0">
+            <svg class="w-4 h-4 sm:w-5 sm:h-5 fill-current" viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
             </svg>
           </div>
-          <div>
-            <h3 class="text-base font-tactical font-bold text-white">RESUMO FORMATADO PARA WHATSAPP</h3>
-            <p class="text-[11px] text-gray-400">Pronto para colar no grupo do time</p>
+          <div class="min-w-0">
+            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight truncate">RESUMO PARA WHATSAPP</h3>
+            <p class="text-[10px] text-gray-400 leading-none">Formatado para o grupo do time</p>
           </div>
         </div>
-        <button onclick="window.closeWhatsappModal()" class="text-gray-400 hover:text-white">
+        <button onclick="window.closeWhatsappModal()" class="text-gray-400 hover:text-white p-1">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -328,30 +325,30 @@
       </div>
 
       <!-- Abas: Mapa Atual vs Todos os Mapas -->
-      <div class="mt-3 flex gap-2 border-b border-[#1e2c3c] pb-2">
-        <button id="tab-btn-current-map" onclick="window.renderWhatsappSummary('current')" class="px-3 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white">Mapa Atual</button>
-        <button id="tab-btn-all-maps" onclick="window.renderWhatsappSummary('all')" class="px-3 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142]">Todos os Mapas</button>
+      <div class="mt-2.5 flex gap-1.5 border-b border-[#1e2c3c] pb-2">
+        <button id="tab-btn-current-map" onclick="window.renderWhatsappSummary('current')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white">Mapa Atual</button>
+        <button id="tab-btn-all-maps" onclick="window.renderWhatsappSummary('all')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142]">Todos os Mapas</button>
       </div>
 
       <!-- Caixa de Texto Formatada -->
-      <div class="mt-3 flex-1 overflow-y-auto">
-        <textarea id="whatsapp-preview-text" readonly rows="10" 
-                  class="w-full bg-[#0c1219] border border-[#233547] rounded p-3 text-xs font-mono text-gray-200 focus:outline-none select-all"></textarea>
+      <div class="mt-2.5 flex-1 min-h-[160px] overflow-y-auto">
+        <textarea id="whatsapp-preview-text" readonly rows="7" 
+                  class="w-full h-full bg-[#0c1219] border border-[#233547] rounded p-2.5 text-[11px] sm:text-xs font-mono text-gray-200 focus:outline-none select-all"></textarea>
       </div>
 
       <!-- Botões de Ação -->
-      <div class="mt-4 pt-3 border-t border-[#1e2c3c] flex gap-2 justify-end">
-        <button onclick="window.copyWhatsappText()" class="btn-tactical px-4 py-2 bg-[#182433] hover:bg-[#253549] text-xs font-bold text-white rounded flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-[#ff4655]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="mt-3 pt-2.5 border-t border-[#1e2c3c] flex gap-2 justify-end">
+        <button onclick="window.copyWhatsappText()" class="btn-tactical px-3 py-1.5 bg-[#182433] hover:bg-[#253549] text-xs font-bold text-white rounded flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-[#ff4655]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
           </svg>
-          <span>Copiar Texto</span>
+          <span>Copiar</span>
         </button>
-        <button onclick="window.shareDirectWhatsapp()" class="btn-tactical px-4 py-2 bg-[#25D366] hover:bg-[#20ba59] text-xs font-bold text-black rounded flex items-center gap-1.5">
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+        <button onclick="window.shareDirectWhatsapp()" class="btn-tactical px-3.5 py-1.5 bg-[#25D366] hover:bg-[#20ba59] text-xs font-bold text-black rounded flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
             <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
           </svg>
-          <span>Abrir no WhatsApp</span>
+          <span>WhatsApp</span>
         </button>
       </div>
 
