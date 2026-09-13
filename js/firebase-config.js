@@ -3,6 +3,19 @@
 const STORAGE_KEY_CONFIG = 'valorant_lineup_firebase_config';
 const STORAGE_KEY_DATA = 'valorant_lineup_local_data';
 const STORAGE_KEY_TEAM = 'valorant_lineup_team_name';
+const STORAGE_KEY_HENRIK = 'valorant_lineup_henrik_api_key';
+
+function getHenrikApiKey() {
+  return localStorage.getItem(STORAGE_KEY_HENRIK) || '';
+}
+
+function saveHenrikApiKey(key) {
+  if (key && key.trim()) {
+    localStorage.setItem(STORAGE_KEY_HENRIK, key.trim());
+  } else {
+    localStorage.removeItem(STORAGE_KEY_HENRIK);
+  }
+}
 
 // Configuração padrão do projeto fornecida pelo usuário
 const DEFAULT_FIREBASE_CONFIG = {
@@ -223,6 +236,8 @@ window.ValorantSync = {
   getLocalData,
   saveLocalData,
   getSavedTeamName,
-  saveTeamName
+  saveTeamName,
+  getHenrikApiKey,
+  saveHenrikApiKey
 };
 })();

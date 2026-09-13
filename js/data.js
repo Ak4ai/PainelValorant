@@ -501,12 +501,24 @@ const DEFAULT_PLAYERS = [
   { id: 7, name: 'Reserva 2', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', mostPlayed: [] }
 ];
 
+// Banco padrão de jogadoras cadastradas para Autocomplete rápido
+const DEFAULT_ROSTER = [
+  { name: 'c0rt3z#0303', kd: '1.18', mostPlayed: ['Jett', 'Reyna', 'Omen'], role: 'Duelista' },
+  { name: 'Julia#BR1', kd: '1.25', mostPlayed: ['Sova', 'Fade', 'Gekko'], role: 'Iniciadora' },
+  { name: 'Bruna#BR1', kd: '1.10', mostPlayed: ['Omen', 'Astra', 'Viper'], role: 'Controladora' },
+  { name: 'Mari#BR1', kd: '1.05', mostPlayed: ['Killjoy', 'Cypher', 'Deadlock'], role: 'Sentinela' },
+  { name: 'Camila#BR1', kd: '1.12', mostPlayed: ['Raze', 'Jett', 'Neon'], role: 'Duelista' },
+  { name: 'Bia#BR1', kd: '1.08', mostPlayed: ['Skye', 'Breach', 'KAY/O'], role: 'Flex' },
+  { name: 'Carol#BR1', kd: '1.14', mostPlayed: ['Clove', 'Brimstone', 'Iso'], role: 'Flex' }
+];
+
 // Compatibilidade Universal (Global Window)
 window.ValorantData = {
   AGENTS,
   ALL_AGENTS,
   MAPS_DATA,
   DEFAULT_PLAYERS,
+  DEFAULT_ROSTER,
   getAgent,
   getAgentColor,
   getAgentRole,

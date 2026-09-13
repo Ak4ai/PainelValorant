@@ -99,12 +99,19 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end text-[11px] text-gray-400 pt-1 sm:pt-0 border-t border-gray-800 sm:border-0">
-        <span class="inline-flex items-center gap-1.5">
-          <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#ff4655]"></span>
-          <span>5 Jogadoras por mapa</span>
-        </span>
-        <span class="text-gray-500">• Titular & Reserva</span>
+      <div class="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end text-[11px] text-gray-400 pt-1 sm:pt-0 border-t border-gray-800 sm:border-0 flex-wrap">
+        <button onclick="window.openRosterModal()" title="Gerenciar banco de jogadoras da equipe e autocompletar" class="btn-tactical px-2.5 py-1 rounded bg-[#16202c] hover:bg-[#1a2b3c] border border-[#273d52] text-xs font-semibold text-emerald-400 hover:text-white flex items-center gap-1.5 transition shadow-sm">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+          </svg>
+          <span>Banco de Jogadoras (Roster)</span>
+        </button>
+        <button onclick="window.replicateRosterToAllMaps()" title="Copiar os nicks, K/D e mais jogadas deste mapa para todos os outros mapas" class="btn-tactical px-2.5 py-1 rounded bg-[#16202c] hover:bg-[#223142] border border-[#27384c] text-xs font-semibold text-sky-300 hover:text-white flex items-center gap-1.5 transition shadow-sm">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
+          </svg>
+          <span>Replicar Nomes em Todos os Mapas</span>
+        </button>
       </div>
     </div>
   </section>
@@ -336,6 +343,20 @@
                   class="w-full bg-[#0c1219] border border-[#233547] rounded p-2 text-xs font-mono text-emerald-400 focus:outline-none focus:border-[#ff4655]"></textarea>
       </div>
 
+      <!-- Configuração da API do HenrikDev (Tracker Automático) -->
+      <div class="mt-3 pt-3 border-t border-[#1e2c3c] space-y-1.5">
+        <div class="flex items-center justify-between">
+          <label class="text-[11px] font-semibold text-gray-200 flex items-center gap-1.5">
+            <span class="text-sky-400">📊</span>
+            <span>Chave API HenrikDev (Tracker Automático - Opcional):</span>
+          </label>
+          <a href="https://dash.henrikdev.xyz" target="_blank" rel="noopener noreferrer" class="text-[10px] text-sky-400 hover:underline">Obter Chave Grátis ↗</a>
+        </div>
+        <input id="henrik-api-key-input" type="password" placeholder="HDEV-xxxx-xxxx-xxxx-xxxx"
+               class="w-full bg-[#0c1219] border border-[#233547] rounded p-2 text-xs font-mono text-sky-300 focus:outline-none focus:border-sky-400">
+        <p class="text-[10px] text-gray-400">Com a chave gratuita do HenrikDev, ao digitar o Riot ID (ex: <code>c0rt3z#0303</code>), o sistema puxa o K/D e agentes automaticamente!</p>
+      </div>
+
       <!-- Ações do Modal -->
       <div class="mt-3 pt-2.5 border-t border-[#1e2c3c] flex flex-wrap gap-2 justify-between items-center">
         <button onclick="window.clearFirebaseConfiguration()" class="text-xs text-red-400 hover:text-red-300 py-1">Desconectar</button>
@@ -343,6 +364,165 @@
           <button onclick="window.closeFirebaseModal()" class="px-3 py-1.5 bg-[#182433] hover:bg-[#203043] text-xs text-gray-300 rounded">Cancelar</button>
           <button onclick="window.applyFirebaseConfigFromInput()" class="btn-tactical px-3.5 py-1.5 bg-[#ff4655] hover:bg-[#e03b49] text-xs font-bold text-white rounded">Salvar e Conectar</button>
         </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: Estatísticas do Tracker e Jogadora -->
+  <div id="tracker-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
+    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-md mx-auto p-4 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[88vh]">
+      <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 rounded bg-sky-500/20 text-sky-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          </div>
+          <div>
+            <h3 id="tracker-modal-title" class="text-sm sm:text-base font-tactical font-bold text-white leading-tight">ESTATÍSTICAS DA JOGADORA</h3>
+            <p id="tracker-modal-sub" class="text-[10px] text-gray-400 leading-none">Nick e dados do Tracker</p>
+          </div>
+        </div>
+        <button onclick="window.closeTrackerModal()" class="text-gray-400 hover:text-white p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="mt-3 space-y-3 flex-1 overflow-y-auto pr-1">
+        <!-- Nick & Link Tracker.gg -->
+        <div>
+          <label class="text-[10px] font-tactical uppercase text-gray-400 block mb-1">Riot ID Completo (Nick#TAG):</label>
+          <div class="flex gap-1.5">
+            <input id="tracker-input-nick" type="text" oninput="window.handleTrackerNickChange(this.value)" placeholder="ex: c0rt3z#0303" class="flex-1 bg-[#0c1219] border border-[#233547] rounded p-2 text-xs text-white focus:outline-none focus:border-sky-400">
+            <a id="tracker-modal-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-tactical px-2.5 py-1.5 bg-sky-950 hover:bg-sky-900 border border-sky-500/50 text-xs font-bold text-sky-300 rounded flex items-center gap-1 flex-shrink-0">
+              <span>Tracker ↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Botão Busca Automática via API -->
+        <div class="bg-[#131d2a] border border-sky-500/30 rounded-lg p-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <span class="text-xs font-tactical font-bold text-sky-300 flex items-center gap-1">
+                <span>⚡</span> Busca Automática via API
+              </span>
+              <p class="text-[10px] text-gray-400">Consulta K/D e agentes mais jogados.</p>
+            </div>
+            <button id="btn-fetch-tracker-auto" onclick="window.fetchTrackerAuto()" class="btn-tactical px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white rounded whitespace-nowrap shadow flex-shrink-0">
+              Buscar Agora
+            </button>
+          </div>
+          <div id="tracker-auto-status" class="mt-1.5 text-[10px] text-gray-400 hidden"></div>
+          
+          <!-- Chave API HenrikDev Opcional -->
+          <div class="mt-2 pt-2 border-t border-[#1d2a3a]">
+            <div class="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+              <span class="text-sky-300 font-medium">Chave API HenrikDev (Opcional):</span>
+              <a href="https://dash.henrikdev.xyz" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">Obter Grátis (10s) ↗</a>
+            </div>
+            <input id="tracker-modal-api-key" type="password" placeholder="HDEV-xxxx-xxxx-xxxx-xxxx"
+                   class="w-full bg-[#0c1219] border border-[#233547] rounded p-1.5 text-xs font-mono text-sky-300 focus:outline-none focus:border-sky-400">
+          </div>
+        </div>
+
+        <!-- K/D Ratio -->
+        <div>
+          <label class="text-[10px] font-tactical uppercase text-gray-400 block mb-1">K/D Atual:</label>
+          <input id="tracker-input-kd" type="text" placeholder="ex: 1.18" class="w-full bg-[#0c1219] border border-[#233547] rounded p-2 text-xs font-mono text-emerald-400 focus:outline-none focus:border-[#ff4655]">
+        </div>
+
+        <!-- Top 3 Mais Jogados -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[10px] font-tactical uppercase text-gray-400">Agentes Mais Jogáveis (Top 3):</label>
+            <span class="text-[9px] text-gray-500">Clique para alterar ou remover</span>
+          </div>
+          <div id="tracker-modal-top-agents" class="flex gap-2 items-center flex-wrap">
+            <!-- Mini buttons for 3 top agents -->
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 pt-2.5 border-t border-[#1e2c3c] flex justify-between items-center">
+        <button onclick="window.closeTrackerModal()" class="px-3 py-1.5 bg-[#182433] text-xs text-gray-300 rounded">Cancelar</button>
+        <button onclick="window.saveTrackerModalData()" class="btn-tactical px-3.5 py-1.5 bg-[#ff4655] hover:bg-[#e03b49] text-xs font-bold text-white rounded">Salvar Estatísticas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Banco de Jogadoras (Roster da Equipe & Autocomplete) -->
+  <div id="roster-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
+    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-xl mx-auto p-4 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+      
+      <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="p-1.5 sm:p-2 rounded bg-emerald-500/20 text-emerald-400 flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight truncate">BANCO DE JOGADORAS (ROSTER)</h3>
+            <p class="text-[10px] text-gray-400 leading-none">Cadastre e gerencie nicks, K/D e agentes para autocomplete em todos os mapas</p>
+          </div>
+        </div>
+        <button onclick="window.closeRosterModal()" class="text-gray-400 hover:text-white p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- Formulário Rápido para Adicionar Jogadora -->
+      <div class="mt-3 bg-[#131d2a] border border-[#203043] rounded-lg p-3">
+        <h4 class="text-xs font-tactical font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
+          <span>+</span> Cadastrar Nova Jogadora no Time
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div class="sm:col-span-1">
+            <label class="text-[9px] uppercase font-tactical text-gray-400 block mb-0.5">Riot ID (Nick#TAG):</label>
+            <input id="new-roster-nick" type="text" placeholder="ex: c0rt3z#0303" class="w-full bg-[#0c1219] border border-[#233547] rounded p-1.5 text-xs text-white focus:outline-none focus:border-emerald-400">
+          </div>
+          <div>
+            <label class="text-[9px] uppercase font-tactical text-gray-400 block mb-0.5">K/D Atual:</label>
+            <input id="new-roster-kd" type="text" placeholder="ex: 1.18" class="w-full bg-[#0c1219] border border-[#233547] rounded p-1.5 text-xs font-mono text-emerald-400 focus:outline-none focus:border-emerald-400">
+          </div>
+          <div>
+            <label class="text-[9px] uppercase font-tactical text-gray-400 block mb-0.5">Função Principal:</label>
+            <select id="new-roster-role" class="w-full bg-[#0c1219] border border-[#233547] rounded p-1.5 text-xs text-white focus:outline-none focus:border-emerald-400">
+              <option value="Duelista">Duelista</option>
+              <option value="Iniciadora">Iniciadora</option>
+              <option value="Controladora">Controladora</option>
+              <option value="Sentinela">Sentinela</option>
+              <option value="Flex">Flex</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-2 flex justify-end">
+          <button onclick="window.addPlayerToRosterFromModal()" class="btn-tactical px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white rounded flex items-center gap-1 shadow">
+            <span>Salvar no Banco</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Jogadoras Cadastradas -->
+      <div class="mt-3 flex-1 overflow-y-auto pr-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] uppercase font-tactical text-gray-400 font-bold">Jogadoras Cadastradas (<span id="roster-count">0</span>):</span>
+          <span class="text-[9px] text-gray-500">Clique para escalar ou editar</span>
+        </div>
+        <div id="roster-cards-container" class="space-y-2">
+          <!-- Injetado dinamicamente -->
+        </div>
+      </div>
+
+      <!-- Rodapé com Ações Rápidas -->
+      <div class="mt-3 pt-2.5 border-t border-[#1e2c3c] flex flex-wrap justify-between items-center gap-2">
+        <button onclick="window.populateCurrentMapFromRoster()" class="btn-tactical px-3 py-1.5 bg-[#162232] hover:bg-[#1e3046] border border-[#28415c] text-xs font-bold text-sky-300 rounded flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <span>Escalar no Mapa Atual</span>
+        </button>
+        <button onclick="window.closeRosterModal()" class="btn-tactical px-4 py-1.5 bg-[#ff4655] hover:bg-[#e03b49] text-xs font-bold text-white rounded">
+          Fechar
+        </button>
       </div>
 
     </div>

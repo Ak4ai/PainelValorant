@@ -1,5 +1,5 @@
 (() => {
-const { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, getAgentColor, getAgentRole, getAgentIcon } = window.ValorantData || {};
+const { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, DEFAULT_ROSTER, getAgentColor, getAgentRole, getAgentIcon } = window.ValorantData || {};
 const { 
   initRealtimeSync, 
   syncSaveData, 
@@ -9,7 +9,9 @@ const {
   clearFirebaseConfig, 
   getSavedFirebaseConfig,
   getSavedTeamName,
-  saveTeamName
+  saveTeamName,
+  getHenrikApiKey,
+  saveHenrikApiKey
 } = window.ValorantSync || {};
 
 // Estado Global da Aplicação
@@ -18,21 +20,42 @@ const state = {
   mapPoolFilter: 'meta', // 'meta' (Pool Campeonato), 'bench' (Fora do Meta), 'all' (Todos)
   teamName: getSavedTeamName(),
   lineups: {}, // Estrutura: { ascent: [ {id, name, titular, reserva}, ... ], haven: [...] }
+  roster: [], // Banco de jogadoras cadastradas para Autocomplete rápido
   activeModal: {
     playerIndex: null,
     agentSlot: null // 'titular' ou 'reserva'
   },
+  trackerModal: {
+    playerIndex: null,
+    tempTopAgents: []
+  },
   whatsappView: 'current' // 'current', 'meta' ou 'all'
 };
 
-// Inicializa a estrutura de lineups com os dados padrão se não existirem
+// Inicializa a estrutura de lineups e o banco de jogadoras (roster)
 function initializeDefaultLineups() {
   const local = getLocalData();
   if (local && typeof local === 'object') {
     state.lineups = local.lineups || local;
-    if (local.meta && local.meta.teamName) {
-      state.teamName = local.meta.teamName;
+    if (local.meta) {
+      if (local.meta.teamName) state.teamName = local.meta.teamName;
+      if (Array.isArray(local.meta.roster)) state.roster = local.meta.roster;
     }
+  }
+
+  // Inicializa roster com DEFAULT_ROSTER se estiver vazio
+  if (!state.roster || state.roster.length === 0) {
+    state.roster = Array.isArray(DEFAULT_ROSTER) ? [...DEFAULT_ROSTER] : [];
+  }
+
+  // Garante que c0rt3z#0303 esteja disponível no banco
+  if (!state.roster.some(p => p.name.toLowerCase() === 'c0rt3z#0303')) {
+    state.roster.unshift({
+      name: 'c0rt3z#0303',
+      kd: '1.18',
+      mostPlayed: ['Jett', 'Reyna', 'Omen'],
+      role: 'Duelista'
+    });
   }
 
   // Garante que cada mapa tenha 7 jogadoras (5 Titulares + 2 Reservas Flex)
@@ -54,6 +77,26 @@ function initializeDefaultLineups() {
         });
       }
     }
+
+    // Coleta jogadoras cadastradas nos mapas para o roster
+    state.lineups[map.id].forEach(p => {
+      if (p.name && !p.name.startsWith('Player ') && !p.name.startsWith('Reserva ') && p.name.trim()) {
+        const found = state.roster.find(r => r.name.toLowerCase() === p.name.trim().toLowerCase());
+        if (!found) {
+          state.roster.push({
+            name: p.name.trim(),
+            kd: p.kd || '',
+            mostPlayed: Array.isArray(p.mostPlayed) ? [...p.mostPlayed] : [],
+            role: 'Flex'
+          });
+        } else {
+          if (!found.kd && p.kd) found.kd = p.kd;
+          if ((!found.mostPlayed || found.mostPlayed.length === 0) && p.mostPlayed && p.mostPlayed.length > 0) {
+            found.mostPlayed = [...p.mostPlayed];
+          }
+        }
+      }
+    });
   });
 }
 
@@ -64,6 +107,15 @@ document.addEventListener('DOMContentLoaded', () => {
   renderMapTabs();
   renderActiveMap();
   setupAgentModalFilters();
+
+  // Fecha dropdowns de autocomplete ao clicar fora
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[id^="player-name-wrapper-"]')) {
+      document.querySelectorAll('[id^="roster-autocomplete-dropdown-"]').forEach(el => {
+        el.classList.add('hidden');
+      });
+    }
+  });
 
   // Inicia conexão em tempo real com Firebase ou LocalStorage
   initRealtimeSync((remoteData, source) => {
@@ -97,11 +149,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    if (remoteData.meta && remoteData.meta.teamName) {
-      state.teamName = remoteData.meta.teamName;
-      const teamInput = document.getElementById('team-name-input');
-      if (teamInput && document.activeElement !== teamInput) {
-        teamInput.value = state.teamName;
+    if (remoteData.meta) {
+      if (remoteData.meta.teamName) {
+        state.teamName = remoteData.meta.teamName;
+        const teamInput = document.getElementById('team-name-input');
+        if (teamInput && document.activeElement !== teamInput) {
+          teamInput.value = state.teamName;
+        }
+      }
+      if (Array.isArray(remoteData.meta.roster)) {
+        state.roster = remoteData.meta.roster;
       }
     }
 
@@ -442,23 +499,39 @@ function renderPlayersList() {
     return `
       <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-[#203043] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
         
-        <!-- Identificador, Nome & Stats Tracker -->
+        <!-- Identificador, Nome & Autocomplete & Stats Tracker -->
         <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
           <div class="flex items-center gap-2 min-w-0">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#162332] border border-[#283b50] flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-[#ff4655] shadow-inner flex-shrink-0">
               P${player.id}
             </div>
-            <div class="flex-1 min-w-0">
-              <input type="text" value="${escapeHtml(player.name || `Player ${player.id}`)}" 
+            <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${index}">
+              <input type="text" 
+                     id="player-name-input-${index}"
+                     value="${escapeHtml(player.name || `Player ${player.id}`)}" 
+                     oninput="window.handlePlayerNameInput(${index}, this.value)"
+                     onfocus="window.showRosterAutocomplete(${index})"
                      onchange="window.updatePlayerName(${index}, this.value)"
-                     placeholder="Nick#TAG (ex: Julia#BR1)"
+                     placeholder="Nick#TAG (ex: c0rt3z#0303)"
+                     autocomplete="off"
                      class="w-full bg-[#0d141e] border border-[#223347] focus:border-[#ff4655] rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
+              
+              <!-- Dropdown de Autocomplete -->
+              <div id="roster-autocomplete-dropdown-${index}" 
+                   class="absolute left-0 top-full mt-1 z-50 w-64 sm:w-72 bg-[#0e1622] border border-[#26374a] rounded-lg shadow-2xl overflow-hidden hidden max-h-56 overflow-y-auto">
+              </div>
             </div>
           </div>
 
-          <!-- Stats Tracker: Link, K/D e Mais Jogadas -->
+          <!-- Stats Tracker: Link, Estatísticas, K/D e Mais Jogadas -->
           <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
             ${trackerLinkHtml}
+            <button onclick="window.openTrackerModal(${index})" 
+                    title="Abrir painel de estatísticas, K/D e agentes do Tracker"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-400 hover:text-white bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span>Estatísticas</span>
+            </button>
             <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
               <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
               <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
@@ -626,23 +699,39 @@ function renderPlayersList() {
       return `
         <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-amber-900/40 hover:border-amber-500/50 bg-[#101722] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
           
-          <!-- Identificador R1/R2, Nome & Stats Tracker -->
+          <!-- Identificador R1/R2, Nome & Autocomplete & Stats Tracker -->
           <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
             <div class="flex items-center gap-2 min-w-0">
               <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-950/70 border border-amber-500/50 flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-amber-300 shadow-inner flex-shrink-0">
                 R${rIdx + 1}
               </div>
-              <div class="flex-1 min-w-0">
-                <input type="text" value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
+              <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${actualIndex}">
+                <input type="text" 
+                       id="player-name-input-${actualIndex}"
+                       value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
+                       oninput="window.handlePlayerNameInput(${actualIndex}, this.value)"
+                       onfocus="window.showRosterAutocomplete(${actualIndex})"
                        onchange="window.updatePlayerName(${actualIndex}, this.value)"
                        placeholder="Nick#TAG (ex: Bruna#BR1)"
+                       autocomplete="off"
                        class="w-full bg-[#0d141e] border border-[#223347] focus:border-amber-400 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
+                
+                <!-- Dropdown de Autocomplete -->
+                <div id="roster-autocomplete-dropdown-${actualIndex}" 
+                     class="absolute left-0 top-full mt-1 z-50 w-64 sm:w-72 bg-[#0e1622] border border-[#26374a] rounded-lg shadow-2xl overflow-hidden hidden max-h-56 overflow-y-auto">
+                </div>
               </div>
             </div>
 
-            <!-- Stats Tracker: Link, K/D e Mais Jogadas -->
+            <!-- Stats Tracker: Link, Estatísticas, K/D e Mais Jogadas -->
             <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
               ${trackerLinkHtml}
+              <button onclick="window.openTrackerModal(${actualIndex})" 
+                      title="Abrir painel de estatísticas, K/D e agentes do Tracker"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-400 hover:text-white bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>Estatísticas</span>
+              </button>
               <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
                 <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
                 <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
@@ -668,13 +757,189 @@ function renderPlayersList() {
   }
 }
 
-// Atualiza o nome da jogadora
+// --------------------------------------------------------------------------
+// SISTEMA DE AUTOCOMPLETE & BANCO DE JOGADORAS (ROSTER)
+// --------------------------------------------------------------------------
+
+// Mostra o dropdown de autocomplete
+window.showRosterAutocomplete = function(playerIndex) {
+  document.querySelectorAll('[id^="roster-autocomplete-dropdown-"]').forEach(el => {
+    el.classList.add('hidden');
+  });
+
+  const dropdown = document.getElementById(`roster-autocomplete-dropdown-${playerIndex}`);
+  const input = document.getElementById(`player-name-input-${playerIndex}`);
+  if (!dropdown || !input) return;
+
+  window.renderRosterAutocompleteDropdown(playerIndex, input.value);
+  dropdown.classList.remove('hidden');
+};
+
+// Trata digitação no input do nome
+window.handlePlayerNameInput = function(playerIndex, value) {
+  window.renderRosterAutocompleteDropdown(playerIndex, value);
+  const dropdown = document.getElementById(`roster-autocomplete-dropdown-${playerIndex}`);
+  if (dropdown && dropdown.classList.contains('hidden')) {
+    dropdown.classList.remove('hidden');
+  }
+};
+
+// Renderiza o dropdown do autocomplete
+window.renderRosterAutocompleteDropdown = function(playerIndex, filterQuery = '') {
+  const dropdown = document.getElementById(`roster-autocomplete-dropdown-${playerIndex}`);
+  if (!dropdown) return;
+
+  const roster = state.roster || [];
+  const cleanQuery = filterQuery.trim().toLowerCase();
+
+  const isGeneric = cleanQuery.startsWith('player ') || cleanQuery.startsWith('reserva ');
+  const filtered = cleanQuery && !isGeneric
+    ? roster.filter(p => p.name.toLowerCase().includes(cleanQuery))
+    : roster;
+
+  let html = `
+    <div class="p-1.5 bg-[#0a1018] border-b border-[#1b2838] flex items-center justify-between text-[9px] font-tactical uppercase tracking-wider text-gray-400">
+      <span>Banco de Jogadoras</span>
+      <span class="text-emerald-400 font-mono">${filtered.length} opções</span>
+    </div>
+    <div class="divide-y divide-[#15202e] max-h-48 overflow-y-auto">
+  `;
+
+  if (filtered.length === 0) {
+    html += `
+      <div class="p-2.5 text-center text-xs text-gray-400">
+        Nenhuma jogadora encontrada no banco.
+      </div>
+    `;
+  } else {
+    filtered.forEach(item => {
+      const topIcons = (item.mostPlayed || []).slice(0, 3).map(agentName => {
+        const icon = getAgentIcon(agentName);
+        const color = getAgentColor(agentName);
+        return `<img src="${icon}" alt="${agentName}" title="${agentName}" class="w-3.5 h-3.5 rounded-full object-cover border flex-shrink-0" style="border-color: ${color}">`;
+      }).join('');
+
+      const kdBadge = item.kd ? `
+        <span class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+          K/D ${item.kd}
+        </span>
+      ` : '';
+
+      html += `
+        <div onmousedown="window.selectRosterPlayer(${playerIndex}, '${escapeHtml(item.name)}')"
+             class="px-2.5 py-1.5 hover:bg-[#162537] cursor-pointer flex items-center justify-between gap-2 transition group">
+          <div class="flex items-center gap-1.5 truncate min-w-0">
+            <span class="text-xs font-bold text-white group-hover:text-emerald-300 truncate">${escapeHtml(item.name)}</span>
+            ${kdBadge}
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            ${topIcons}
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  // Opção para salvar o texto digitado como nova jogadora
+  if (cleanQuery && cleanQuery.length > 2 && !isGeneric && !roster.some(p => p.name.toLowerCase() === cleanQuery)) {
+    html += `
+      <div onmousedown="window.saveInputToRoster(${playerIndex}, '${escapeHtml(filterQuery.trim())}')"
+           class="p-2 bg-[#0d1724] hover:bg-[#18283d] cursor-pointer text-xs font-tactical font-semibold text-sky-300 border-t border-[#1c2c40] flex items-center gap-1.5 transition">
+        <span class="text-emerald-400 font-bold">+</span>
+        <span>Salvar "<b>${escapeHtml(filterQuery.trim())}</b>" no Banco</span>
+      </div>
+    `;
+  }
+
+  html += `
+    </div>
+    <div class="p-1.5 bg-[#0a1018] border-t border-[#1b2838] flex items-center justify-between text-[9px] text-gray-500">
+      <span>Clique para preencher nick, K/D e agentes</span>
+      <button type="button" onmousedown="window.openRosterModal()" class="text-emerald-400 hover:underline">Ver Banco ↗</button>
+    </div>
+  `;
+
+  dropdown.innerHTML = html;
+};
+
+// Seleciona uma jogadora do autocomplete
+window.selectRosterPlayer = function(playerIndex, playerName) {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  const rosterItem = (state.roster || []).find(p => p.name.toLowerCase() === playerName.toLowerCase());
+  
+  currentPlayers[playerIndex].name = playerName;
+  if (rosterItem) {
+    if (rosterItem.kd) currentPlayers[playerIndex].kd = rosterItem.kd;
+    if (Array.isArray(rosterItem.mostPlayed) && rosterItem.mostPlayed.length > 0) {
+      currentPlayers[playerIndex].mostPlayed = [...rosterItem.mostPlayed];
+    }
+  }
+
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+  renderPlayersList();
+  showToast(`Jogadora "${playerName}" carregada com sucesso!`, 'success');
+};
+
+// Salva input digitado no banco
+window.saveInputToRoster = function(playerIndex, rawName) {
+  if (!rawName || !rawName.trim()) return;
+  const cleanName = rawName.trim();
+
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (currentPlayers && currentPlayers[playerIndex]) {
+    currentPlayers[playerIndex].name = cleanName;
+  }
+
+  upsertRosterPlayer({
+    name: cleanName,
+    kd: currentPlayers?.[playerIndex]?.kd || '',
+    mostPlayed: currentPlayers?.[playerIndex]?.mostPlayed || [],
+    role: 'Flex'
+  });
+
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+  renderPlayersList();
+  showToast(`Jogadora "${cleanName}" cadastrada no Banco!`, 'success');
+};
+
+// Atualiza o nome da jogadora ao alterar input
 window.updatePlayerName = function(playerIndex, newName) {
   const currentPlayers = state.lineups[state.activeMapId];
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
 
   const defaultName = playerIndex < 5 ? `Player ${playerIndex + 1}` : `Reserva ${playerIndex - 4}`;
-  currentPlayers[playerIndex].name = newName.trim() || defaultName;
+  const finalName = newName.trim() || defaultName;
+  currentPlayers[playerIndex].name = finalName;
+
+  // Se o nick digitado coincidir com alguém do Banco de Jogadoras, carrega K/D e agentes automaticamente
+  const inRoster = (state.roster || []).find(r => r.name.toLowerCase() === finalName.toLowerCase());
+  if (inRoster) {
+    if (inRoster.kd && !currentPlayers[playerIndex].kd) {
+      currentPlayers[playerIndex].kd = inRoster.kd;
+    }
+    if (Array.isArray(inRoster.mostPlayed) && inRoster.mostPlayed.length > 0 && (!currentPlayers[playerIndex].mostPlayed || currentPlayers[playerIndex].mostPlayed.length === 0)) {
+      currentPlayers[playerIndex].mostPlayed = [...inRoster.mostPlayed];
+    }
+    showToast(`Jogadora "${finalName}" reconhecida! K/D e agentes carregados.`, 'success');
+  } else if (finalName.includes('#') && !finalName.startsWith('Player ') && !finalName.startsWith('Reserva ')) {
+    upsertRosterPlayer({
+      name: finalName,
+      kd: currentPlayers[playerIndex].kd || '',
+      mostPlayed: Array.isArray(currentPlayers[playerIndex].mostPlayed) ? [...currentPlayers[playerIndex].mostPlayed] : [],
+      role: 'Flex'
+    });
+
+    // Se tiver chave configurada para a API HenrikDev, busca em segundo plano
+    const henrikKey = getHenrikApiKey();
+    if (henrikKey) {
+      autoFetchPlayerStatsInBackground(playerIndex, finalName);
+    }
+  }
+
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
   renderPlayersList();
@@ -686,6 +951,16 @@ window.updatePlayerKd = function(playerIndex, newKd) {
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
 
   currentPlayers[playerIndex].kd = (newKd || '').trim();
+
+  // Sincroniza com o banco de jogadoras
+  if (currentPlayers[playerIndex].name && !currentPlayers[playerIndex].name.startsWith('Player ') && !currentPlayers[playerIndex].name.startsWith('Reserva ')) {
+    upsertRosterPlayer({
+      name: currentPlayers[playerIndex].name,
+      kd: currentPlayers[playerIndex].kd,
+      mostPlayed: currentPlayers[playerIndex].mostPlayed
+    });
+  }
+
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
 };
@@ -702,12 +977,543 @@ window.promptPlayerTag = function(playerIndex) {
   const input = window.prompt(`Digite o Riot ID completo com a TAG (ex: ${baseName}#BR1):`, currentName.includes('#') ? currentName : `${baseName}#BR1`);
   
   if (input && input.trim()) {
-    player.name = input.trim();
-    saveCurrentState();
-    syncSavePlayer(state.activeMapId, playerIndex, player, state.lineups);
-    renderPlayersList();
-    showToast(`Riot ID atualizado: ${player.name}`, 'success');
+    window.updatePlayerName(playerIndex, input.trim());
   }
+};
+
+// Adiciona ou atualiza jogadora no roster
+function upsertRosterPlayer(playerObj) {
+  if (!playerObj || !playerObj.name) return;
+  if (!Array.isArray(state.roster)) state.roster = [];
+
+  const existingIdx = state.roster.findIndex(p => p.name.toLowerCase() === playerObj.name.trim().toLowerCase());
+  if (existingIdx >= 0) {
+    state.roster[existingIdx] = {
+      ...state.roster[existingIdx],
+      ...playerObj,
+      name: playerObj.name.trim()
+    };
+  } else {
+    state.roster.push({
+      name: playerObj.name.trim(),
+      kd: playerObj.kd || '',
+      mostPlayed: Array.isArray(playerObj.mostPlayed) ? [...playerObj.mostPlayed] : [],
+      role: playerObj.role || 'Flex'
+    });
+  }
+}
+
+// Busca automática em segundo plano via HenrikDev API
+async function autoFetchPlayerStatsInBackground(playerIndex, riotId) {
+  if (!riotId || !riotId.includes('#')) return;
+  const [name, tag] = riotId.split('#').map(s => s.trim());
+  const apiKey = getHenrikApiKey();
+  if (!apiKey) return;
+
+  try {
+    const accRes = await fetch(`https://api.henrikdev.xyz/valorant/v1/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`, {
+      headers: { 'Authorization': apiKey }
+    });
+    if (!accRes.ok) return;
+
+    const accData = await accRes.json();
+    const region = accData.data?.region || 'br';
+
+    const matchRes = await fetch(`https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?size=10`, {
+      headers: { 'Authorization': apiKey }
+    });
+    if (!matchRes.ok) return;
+
+    const matchData = await matchRes.json();
+    if (matchData.data && Array.isArray(matchData.data)) {
+      let kills = 0, deaths = 0;
+      const counts = {};
+      matchData.data.forEach(m => {
+        const p = m.players?.all_players?.find(pl => 
+          pl.name.toLowerCase() === name.toLowerCase() && pl.tag.toLowerCase() === tag.toLowerCase()
+        );
+        if (p) {
+          kills += p.stats?.kills || 0;
+          deaths += p.stats?.deaths || 0;
+          if (p.character) counts[p.character] = (counts[p.character] || 0) + 1;
+        }
+      });
+
+      const currentPlayers = state.lineups[state.activeMapId];
+      if (currentPlayers && currentPlayers[playerIndex]) {
+        if (deaths > 0) currentPlayers[playerIndex].kd = (kills / deaths).toFixed(2);
+        const topAgents = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
+        if (topAgents.length > 0) currentPlayers[playerIndex].mostPlayed = topAgents;
+
+        upsertRosterPlayer({
+          name: riotId,
+          kd: currentPlayers[playerIndex].kd,
+          mostPlayed: currentPlayers[playerIndex].mostPlayed
+        });
+
+        saveCurrentState();
+        syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+        renderPlayersList();
+        showToast(`Estatísticas do Tracker para ${riotId} sincronizadas!`, 'success');
+      }
+    }
+  } catch (err) {
+    console.warn('Erro na busca em segundo plano do Tracker:', err);
+  }
+}
+
+// --------------------------------------------------------------------------
+// MODAL: BANCO DE JOGADORAS (ROSTER COMPLETO DA EQUIPE)
+// --------------------------------------------------------------------------
+
+window.openRosterModal = function() {
+  const modal = document.getElementById('roster-modal');
+  if (modal) {
+    window.renderRosterCards();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+};
+
+window.closeRosterModal = function() {
+  const modal = document.getElementById('roster-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.renderRosterCards = function() {
+  const container = document.getElementById('roster-cards-container');
+  const countEl = document.getElementById('roster-count');
+  if (!container) return;
+
+  const roster = state.roster || [];
+  if (countEl) countEl.textContent = roster.length;
+
+  if (roster.length === 0) {
+    container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">Nenhuma jogadora cadastrada no banco. Cadastre acima!</div>`;
+    return;
+  }
+
+  container.innerHTML = roster.map((item, idx) => {
+    const topIcons = (item.mostPlayed || []).slice(0, 3).map(agentName => {
+      const icon = getAgentIcon(agentName);
+      const color = getAgentColor(agentName);
+      return `<img src="${icon}" alt="${agentName}" title="${agentName}" class="w-5 h-5 rounded-full object-cover border flex-shrink-0" style="border-color: ${color}">`;
+    }).join('');
+
+    const hasTag = item.name.includes('#');
+    let trackerBtn = '';
+    if (hasTag) {
+      const [name, tag] = item.name.split('#').map(s => s.trim());
+      trackerBtn = `
+        <a href="https://tracker.gg/valorant/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}/overview" 
+           target="_blank" rel="noopener noreferrer" 
+           class="px-2 py-1 rounded bg-sky-950 hover:bg-sky-900 border border-sky-500/40 text-[10px] font-bold text-sky-300 transition">
+          Tracker ↗
+        </a>
+      `;
+    }
+
+    return `
+      <div class="tactical-card p-2.5 rounded-lg border border-[#203043] flex items-center justify-between gap-3 bg-[#0f1722] hover:border-[#ff4655]/40 transition">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-[#162332] border border-[#283b50] flex items-center justify-center font-tactical font-bold text-xs text-emerald-400 flex-shrink-0">
+            ${idx + 1}
+          </div>
+          <div class="truncate min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-white truncate">${escapeHtml(item.name)}</span>
+              ${item.kd ? `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">K/D: ${item.kd}</span>` : ''}
+              ${item.role ? `<span class="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-[#182637] text-gray-300 border border-[#263c54]">${item.role}</span>` : ''}
+            </div>
+            <div class="flex items-center gap-1 mt-1">
+              <span class="text-[8px] uppercase text-gray-500 font-tactical">Mais jogadas:</span>
+              ${topIcons || '<span class="text-[9px] text-gray-500 italic">Nenhum definido</span>'}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          ${trackerBtn}
+          <button onclick="window.removePlayerFromRoster('${escapeHtml(item.name)}')" title="Remover do banco" class="p-1 rounded text-gray-500 hover:text-red-400 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+window.addPlayerToRosterFromModal = function() {
+  const nickInput = document.getElementById('new-roster-nick');
+  const kdInput = document.getElementById('new-roster-kd');
+  const roleInput = document.getElementById('new-roster-role');
+
+  const nick = nickInput ? nickInput.value.trim() : '';
+  const kd = kdInput ? kdInput.value.trim() : '';
+  const role = roleInput ? roleInput.value : 'Flex';
+
+  if (!nick) {
+    showToast('Informe o Riot ID da jogadora (ex: c0rt3z#0303)', 'error');
+    return;
+  }
+
+  upsertRosterPlayer({
+    name: nick,
+    kd: kd,
+    mostPlayed: [],
+    role: role
+  });
+
+  if (nickInput) nickInput.value = '';
+  if (kdInput) kdInput.value = '';
+
+  saveCurrentState();
+  window.renderRosterCards();
+  renderPlayersList();
+  showToast(`Jogadora "${nick}" adicionada ao Banco de Jogadoras!`, 'success');
+};
+
+window.removePlayerFromRoster = function(name) {
+  if (!confirm(`Remover "${name}" do Banco de Jogadoras?`)) return;
+  state.roster = (state.roster || []).filter(p => p.name.toLowerCase() !== name.toLowerCase());
+  saveCurrentState();
+  window.renderRosterCards();
+  showToast(`Jogadora removida do banco`, 'info');
+};
+
+window.populateCurrentMapFromRoster = function() {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers) return;
+
+  const roster = state.roster || [];
+  if (roster.length === 0) {
+    showToast('Nenhuma jogadora cadastrada no banco!', 'error');
+    return;
+  }
+
+  roster.slice(0, 7).forEach((item, idx) => {
+    if (currentPlayers[idx]) {
+      currentPlayers[idx].name = item.name;
+      if (item.kd) currentPlayers[idx].kd = item.kd;
+      if (Array.isArray(item.mostPlayed) && item.mostPlayed.length > 0) {
+        currentPlayers[idx].mostPlayed = [...item.mostPlayed];
+      }
+    }
+  });
+
+  saveCurrentState();
+  renderPlayersList();
+  window.closeRosterModal();
+  showToast(`Escalação preenchida com as ${Math.min(roster.length, 7)} jogadoras do banco!`, 'success');
+};
+
+// Replicar nicks, K/D e mais jogadas de todas as 7 jogadoras para todos os outros 10 mapas
+window.replicateRosterToAllMaps = function() {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !Array.isArray(currentPlayers)) return;
+
+  const currentMap = MAPS_DATA.find(m => m.id === state.activeMapId) || { name: state.activeMapId };
+  
+  const confirmed = window.confirm(
+    `Deseja replicar os nomes, K/D e agentes mais jogados das 7 jogadoras de "${currentMap.name}" para TODOS os outros 10 mapas?\n\nAs escolhas táticas de agentes específicas de cada mapa serão mantidas.`
+  );
+  if (!confirmed) return;
+
+  MAPS_DATA.forEach(map => {
+    if (map.id === state.activeMapId) return;
+
+    if (!state.lineups[map.id]) {
+      state.lineups[map.id] = DEFAULT_PLAYERS.map(p => ({ ...p, mostPlayed: [...(p.mostPlayed || [])] }));
+    }
+
+    const targetPlayers = state.lineups[map.id];
+    currentPlayers.forEach((sourcePlayer, idx) => {
+      if (!targetPlayers[idx]) {
+        targetPlayers[idx] = { id: idx + 1, titular: '', reserva: '', kd: '', mostPlayed: [] };
+      }
+      targetPlayers[idx].name = sourcePlayer.name;
+      targetPlayers[idx].kd = sourcePlayer.kd || '';
+      targetPlayers[idx].mostPlayed = Array.isArray(sourcePlayer.mostPlayed) ? [...sourcePlayer.mostPlayed] : [];
+    });
+  });
+
+  currentPlayers.forEach(p => {
+    if (p.name && !p.name.startsWith('Player ') && !p.name.startsWith('Reserva ')) {
+      upsertRosterPlayer({
+        name: p.name,
+        kd: p.kd || '',
+        mostPlayed: Array.isArray(p.mostPlayed) ? [...p.mostPlayed] : []
+      });
+    }
+  });
+
+  saveCurrentState();
+  showToast(`Lineup replicada para todos os 11 mapas com sucesso!`, 'success');
+};
+
+// --------------------------------------------------------------------------
+// MODAL: TRACKER & ESTATÍSTICAS DA JOGADORA
+// --------------------------------------------------------------------------
+
+window.openTrackerModal = function(playerIndex) {
+  state.trackerModal.playerIndex = playerIndex;
+
+  const currentPlayers = state.lineups[state.activeMapId];
+  const player = currentPlayers?.[playerIndex] || { name: '', kd: '', mostPlayed: [] };
+
+  state.trackerModal.tempTopAgents = Array.isArray(player.mostPlayed) ? [...player.mostPlayed] : [];
+
+  const titleEl = document.getElementById('tracker-modal-title');
+  const subEl = document.getElementById('tracker-modal-sub');
+  const nickInput = document.getElementById('tracker-input-nick');
+  const kdInput = document.getElementById('tracker-input-kd');
+  const statusEl = document.getElementById('tracker-auto-status');
+  const apiKeyInput = document.getElementById('tracker-modal-api-key');
+
+  const label = playerIndex < 5 ? `Titular P${playerIndex + 1}` : `Reserva R${playerIndex - 4}`;
+  if (titleEl) titleEl.textContent = `ESTATÍSTICAS - ${label}`;
+  if (subEl) subEl.textContent = player.name || label;
+  if (nickInput) nickInput.value = player.name || '';
+  if (kdInput) kdInput.value = player.kd || '';
+  if (apiKeyInput) apiKeyInput.value = getHenrikApiKey();
+  if (statusEl) {
+    statusEl.classList.add('hidden');
+    statusEl.innerHTML = '';
+  }
+
+  window.handleTrackerNickChange(player.name || '');
+  renderTrackerModalTopAgents();
+
+  const modal = document.getElementById('tracker-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+};
+
+window.closeTrackerModal = function() {
+  const modal = document.getElementById('tracker-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.handleTrackerNickChange = function(val) {
+  const trackerLink = document.getElementById('tracker-modal-link');
+  if (!trackerLink) return;
+
+  if (val && val.includes('#')) {
+    const [name, tag] = val.split('#').map(s => s.trim());
+    trackerLink.href = `https://tracker.gg/valorant/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}/overview`;
+    trackerLink.classList.remove('pointer-events-none', 'opacity-50');
+  } else {
+    trackerLink.href = '#';
+    trackerLink.classList.add('pointer-events-none', 'opacity-50');
+  }
+};
+
+function renderTrackerModalTopAgents() {
+  const container = document.getElementById('tracker-modal-top-agents');
+  if (!container) return;
+
+  const agents = state.trackerModal.tempTopAgents || [];
+
+  let html = agents.map((agentName, idx) => {
+    const icon = getAgentIcon(agentName);
+    const color = getAgentColor(agentName);
+    return `
+      <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-[#0d141e] border border-[#233547] text-xs text-white">
+        <img src="${icon}" alt="${agentName}" class="w-5 h-5 rounded-full object-cover border" style="border-color: ${color}">
+        <span class="font-semibold">${agentName}</span>
+        <button onclick="window.removeTrackerTopAgent(${idx})" title="Remover agente" class="text-red-400 hover:text-red-300 ml-1 font-bold text-xs">×</button>
+      </div>
+    `;
+  }).join('');
+
+  if (agents.length < 3) {
+    html += `
+      <button onclick="window.promptAddTrackerTopAgent()" class="px-2 py-1 rounded border border-dashed border-gray-600 hover:border-sky-400 text-xs text-gray-400 hover:text-sky-300 bg-[#0d141e] transition">
+        + Adicionar Agente
+      </button>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+window.removeTrackerTopAgent = function(idx) {
+  if (state.trackerModal.tempTopAgents) {
+    state.trackerModal.tempTopAgents.splice(idx, 1);
+    renderTrackerModalTopAgents();
+  }
+};
+
+window.promptAddTrackerTopAgent = function() {
+  const nextIdx = (state.trackerModal.tempTopAgents || []).length + 1;
+  window.openAgentModal(state.trackerModal.playerIndex, `top${nextIdx}`);
+};
+
+function showTrackerStatus(msg, type = 'info') {
+  const el = document.getElementById('tracker-auto-status');
+  if (!el) return;
+
+  el.classList.remove('hidden');
+  if (type === 'error') {
+    el.className = 'mt-1.5 text-[11px] p-2 rounded bg-red-950/70 border border-red-500/40 text-red-300';
+  } else if (type === 'success') {
+    el.className = 'mt-1.5 text-[11px] p-2 rounded bg-emerald-950/70 border border-emerald-500/40 text-emerald-300';
+  } else if (type === 'warning') {
+    el.className = 'mt-1.5 text-[11px] p-2.5 rounded bg-[#182330] border border-amber-500/40 text-gray-300';
+  } else {
+    el.className = 'mt-1.5 text-[11px] p-2 rounded bg-sky-950/60 border border-sky-500/40 text-sky-300';
+  }
+  el.innerHTML = msg;
+}
+
+window.fetchTrackerAuto = async function() {
+  const nickInput = document.getElementById('tracker-input-nick');
+  const apiKeyInput = document.getElementById('tracker-modal-api-key');
+
+  const rawNick = nickInput ? nickInput.value.trim() : '';
+  if (!rawNick || !rawNick.includes('#')) {
+    showTrackerStatus('Informe o Riot ID completo no formato Nick#TAG (ex: c0rt3z#0303)', 'error');
+    return;
+  }
+
+  const [name, tag] = rawNick.split('#').map(s => s.trim());
+  const modalKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+  if (modalKey) {
+    saveHenrikApiKey(modalKey);
+  }
+  const apiKey = getHenrikApiKey();
+
+  if (!apiKey) {
+    // Se c0rt3z#0303 ou jogador cadastrado, oferece preencher com dados conhecidos
+    const known = (state.roster || []).find(r => r.name.toLowerCase() === rawNick.toLowerCase());
+    let knownAction = '';
+    if (known && known.kd) {
+      document.getElementById('tracker-input-kd').value = known.kd;
+      if (known.mostPlayed && known.mostPlayed.length > 0) {
+        state.trackerModal.tempTopAgents = [...known.mostPlayed];
+        renderTrackerModalTopAgents();
+      }
+      knownAction = `<p class="text-emerald-300 mt-1 font-semibold">⚡ Dados pré-carregados do perfil: K/D ${known.kd} e agentes definidos!</p>`;
+    }
+
+    showTrackerStatus(`
+      <div class="space-y-1 text-[11px]">
+        <p class="text-amber-300 font-bold">⚠️ Para busca 100% ao vivo pela API Riot, cole sua chave HenrikDev acima.</p>
+        <p class="text-gray-300">O Tracker.gg protege o site contra robôs via Cloudflare. Você pode abrir o Tracker oficial ou gerar a chave grátis!</p>
+        <div class="flex items-center gap-2 pt-1">
+          <a href="https://dash.henrikdev.xyz" target="_blank" rel="noopener noreferrer" class="text-sky-400 font-bold underline">Obter Chave Grátis no Discord (10s) ↗</a>
+          <span class="text-gray-500">|</span>
+          <a href="https://tracker.gg/valorant/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}/overview" target="_blank" rel="noopener noreferrer" class="text-emerald-400 font-bold underline">Abrir Perfil no Tracker.gg ↗</a>
+        </div>
+        ${knownAction}
+      </div>
+    `, 'warning');
+    return;
+  }
+
+  showTrackerStatus('⏳ Consultando API da Riot Games / HenrikDev...', 'loading');
+
+  try {
+    const accRes = await fetch(`https://api.henrikdev.xyz/valorant/v1/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`, {
+      headers: { 'Authorization': apiKey }
+    });
+
+    if (!accRes.ok) {
+      if (accRes.status === 401) throw new Error('Chave API inválida ou expirada. Gere uma nova em dash.henrikdev.xyz');
+      if (accRes.status === 404) throw new Error(`Jogadora "${rawNick}" não encontrada. Verifique o Nick e a TAG.`);
+      throw new Error(`Erro na API (${accRes.status}): ${accRes.statusText}`);
+    }
+
+    const accData = await accRes.json();
+    const region = accData.data?.region || 'br';
+
+    const matchRes = await fetch(`https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?size=10`, {
+      headers: { 'Authorization': apiKey }
+    });
+
+    let calculatedKd = '';
+    let topAgents = [];
+
+    if (matchRes.ok) {
+      const matchData = await matchRes.json();
+      if (matchData.data && Array.isArray(matchData.data)) {
+        let kills = 0, deaths = 0;
+        const counts = {};
+        matchData.data.forEach(m => {
+          const p = m.players?.all_players?.find(pl => 
+            pl.name.toLowerCase() === name.toLowerCase() && pl.tag.toLowerCase() === tag.toLowerCase()
+          );
+          if (p) {
+            kills += p.stats?.kills || 0;
+            deaths += p.stats?.deaths || 0;
+            if (p.character) counts[p.character] = (counts[p.character] || 0) + 1;
+          }
+        });
+        if (deaths > 0) calculatedKd = (kills / deaths).toFixed(2);
+        topAgents = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
+      }
+    }
+
+    if (calculatedKd) {
+      const kdInput = document.getElementById('tracker-input-kd');
+      if (kdInput) kdInput.value = calculatedKd;
+    }
+
+    if (topAgents.length > 0) {
+      state.trackerModal.tempTopAgents = topAgents;
+      renderTrackerModalTopAgents();
+    }
+
+    showTrackerStatus(`✅ Sucesso! Dados encontrados: K/D ${calculatedKd || 'obtido'} e ${topAgents.length} agentes carregados.`, 'success');
+  } catch (err) {
+    showTrackerStatus(`Erro ao buscar: ${err.message}`, 'error');
+  }
+};
+
+window.saveTrackerModalData = function() {
+  const pIdx = state.trackerModal.playerIndex;
+  if (pIdx === null || pIdx === undefined) return;
+
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[pIdx]) return;
+
+  const nickInput = document.getElementById('tracker-input-nick');
+  const kdInput = document.getElementById('tracker-input-kd');
+  const apiKeyInput = document.getElementById('tracker-modal-api-key');
+
+  const newNick = nickInput ? nickInput.value.trim() : currentPlayers[pIdx].name;
+  const newKd = kdInput ? kdInput.value.trim() : currentPlayers[pIdx].kd;
+
+  if (apiKeyInput && apiKeyInput.value.trim()) {
+    saveHenrikApiKey(apiKeyInput.value.trim());
+  }
+
+  currentPlayers[pIdx].name = newNick;
+  currentPlayers[pIdx].kd = newKd;
+  currentPlayers[pIdx].mostPlayed = [...(state.trackerModal.tempTopAgents || [])];
+
+  if (newNick && !newNick.startsWith('Player ') && !newNick.startsWith('Reserva ')) {
+    upsertRosterPlayer({
+      name: newNick,
+      kd: newKd,
+      mostPlayed: currentPlayers[pIdx].mostPlayed,
+      role: 'Flex'
+    });
+  }
+
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, pIdx, currentPlayers[pIdx], state.lineups);
+  renderPlayersList();
+  window.closeTrackerModal();
+  showToast(`Estatísticas de ${newNick} salvas com sucesso!`, 'success');
 };
 
 // Abre Modal de Escolha de Agente
@@ -871,6 +1677,7 @@ function saveCurrentState() {
   const fullPayload = {
     meta: {
       teamName: state.teamName,
+      roster: state.roster,
       lastUpdated: new Date().toISOString()
     },
     lineups: state.lineups
@@ -1043,6 +1850,10 @@ window.shareDirectWhatsapp = function() {
 
 window.openFirebaseModal = function() {
   const modal = document.getElementById('firebase-modal');
+  const henrikInput = document.getElementById('henrik-api-key-input');
+  if (henrikInput) {
+    henrikInput.value = getHenrikApiKey();
+  }
   modal.classList.remove('hidden');
   modal.classList.add('flex');
 };
@@ -1055,11 +1866,18 @@ window.closeFirebaseModal = function() {
 
 window.applyFirebaseConfigFromInput = function() {
   const textarea = document.getElementById('firebase-config-textarea');
+  const henrikInput = document.getElementById('henrik-api-key-input');
+
+  if (henrikInput) {
+    saveHenrikApiKey(henrikInput.value.trim());
+  }
+
   if (!textarea) return;
 
   const rawText = textarea.value.trim();
   if (!rawText) {
-    showToast('Por favor, cole a configuração do Firebase.', 'error');
+    showToast('Chave HenrikDev salva!', 'success');
+    closeFirebaseModal();
     return;
   }
 
