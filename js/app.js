@@ -1,5 +1,5 @@
-import { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, getAgentColor, getAgentRole, getAgentIcon } from './data.js';
-import { 
+const { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, getAgentColor, getAgentRole, getAgentIcon } = window.ValorantData || {};
+const { 
   initRealtimeSync, 
   syncSaveData, 
   syncSavePlayer, 
@@ -9,7 +9,7 @@ import {
   getSavedFirebaseConfig,
   getSavedTeamName,
   saveTeamName
-} from './firebase-config.js';
+} = window.ValorantSync || {};
 
 // Estado Global da Aplicação
 const state = {

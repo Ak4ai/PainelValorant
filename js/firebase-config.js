@@ -5,7 +5,7 @@ const STORAGE_KEY_DATA = 'valorant_lineup_local_data';
 const STORAGE_KEY_TEAM = 'valorant_lineup_team_name';
 
 // Configuração padrão do projeto fornecida pelo usuário
-export const DEFAULT_FIREBASE_CONFIG = {
+const DEFAULT_FIREBASE_CONFIG = {
   apiKey: "AIzaSyDWqTxRoxdYUzhRj9iNOf9KYThWYe0dOWE",
   authDomain: "coachvalorants-ceacc.firebaseapp.com",
   databaseURL: "https://coachvalorants-ceacc-default-rtdb.firebaseio.com",
@@ -21,7 +21,7 @@ let isConnectedToFirebase = false;
 let onSyncCallback = null;
 
 // Retorna a configuração salva ou a configuração padrão do projeto
-export function getSavedFirebaseConfig() {
+function getSavedFirebaseConfig() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
     if (saved) {
@@ -39,7 +39,7 @@ export function getSavedFirebaseConfig() {
   return DEFAULT_FIREBASE_CONFIG;
 }
 
-export function saveFirebaseConfig(configObj) {
+function saveFirebaseConfig(configObj) {
   try {
     localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(configObj));
     return true;
@@ -49,12 +49,12 @@ export function saveFirebaseConfig(configObj) {
   }
 }
 
-export function clearFirebaseConfig() {
+function clearFirebaseConfig() {
   localStorage.removeItem(STORAGE_KEY_CONFIG);
 }
 
 // Inicializa a conexão com o Firebase Realtime Database
-export function initRealtimeSync(callback) {
+function initRealtimeSync(callback) {
   onSyncCallback = callback;
   const config = getSavedFirebaseConfig();
 
@@ -113,8 +113,8 @@ export function initRealtimeSync(callback) {
         }
       }
     }, (error) => {
-      console.error('Erro de permissão no Firebase Realtime Database:', error);
-      updateConnectionStatusBadge(false, 'Regras de Permissão do Firebase');
+      console.error('Erro de conexão ou permissão no Firebase Realtime Database:', error);
+      updateConnectionStatusBadge(false, 'Ativar Realtime DB no Firebase');
     });
 
     return { status: 'connected', message: 'Conectado ao Firebase em Tempo Real' };
@@ -126,8 +126,7 @@ export function initRealtimeSync(callback) {
 }
 
 // Salva dados no Firebase e no LocalStorage
-export function syncSaveData(fullData) {
-  // Salva no LocalStorage sempre como garantia
+function syncSaveData(fullData) {
   saveLocalData(fullData);
 
   if (dbInstance && isConnectedToFirebase) {
@@ -138,13 +137,11 @@ export function syncSaveData(fullData) {
     }
   }
 
-  // Notifica outras abas no mesmo navegador
   window.dispatchEvent(new CustomEvent('valorant-local-update', { detail: fullData }));
 }
 
 // Salva apenas um jogador de um mapa de forma rápida
-export function syncSavePlayer(mapId, playerIndex, playerData, allState) {
-  // Atualiza no estado completo local
+function syncSavePlayer(mapId, playerIndex, playerData, allState) {
   if (allState && allState[mapId] && allState[mapId][playerIndex]) {
     allState[mapId][playerIndex] = { ...allState[mapId][playerIndex], ...playerData };
     saveLocalData(allState);
@@ -160,7 +157,7 @@ export function syncSavePlayer(mapId, playerIndex, playerData, allState) {
 }
 
 // Persistência local (LocalStorage)
-export function getLocalData() {
+function getLocalData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DATA);
     return raw ? JSON.parse(raw) : null;
@@ -169,17 +166,17 @@ export function getLocalData() {
   }
 }
 
-export function saveLocalData(data) {
+function saveLocalData(data) {
   try {
     localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(data));
   } catch (e) {}
 }
 
-export function getSavedTeamName() {
+function getSavedTeamName() {
   return localStorage.getItem(STORAGE_KEY_TEAM) || 'Lineup Feminina Valorant';
 }
 
-export function saveTeamName(name) {
+function saveTeamName(name) {
   localStorage.setItem(STORAGE_KEY_TEAM, name);
   if (dbInstance && isConnectedToFirebase) {
     try {
@@ -213,3 +210,18 @@ function updateConnectionStatusBadge(isOnline, customLabel) {
     text.textContent = customLabel || 'Modo Local (Verificar Nuvem)';
   }
 }
+
+// Compatibilidade Universal (Window Global + ES Modules)
+window.ValorantSync = {
+  DEFAULT_FIREBASE_CONFIG,
+  getSavedFirebaseConfig,
+  saveFirebaseConfig,
+  clearFirebaseConfig,
+  initRealtimeSync,
+  syncSaveData,
+  syncSavePlayer,
+  getLocalData,
+  saveLocalData,
+  getSavedTeamName,
+  saveTeamName
+};

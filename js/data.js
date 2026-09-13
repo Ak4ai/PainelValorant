@@ -1,5 +1,5 @@
 // Banco de Agentes de Valorant com URLs oficiais da Riot CDN
-export const AGENTS = {
+const AGENTS = {
   Duelistas: [
     { 
       name: 'Jett', 
@@ -186,29 +186,29 @@ export const AGENTS = {
 };
 
 // Lista linear de todos os agentes para buscas rápidas
-export const ALL_AGENTS = Object.values(AGENTS).flat();
+const ALL_AGENTS = Object.values(AGENTS).flat();
 
-export function getAgent(agentName) {
+function getAgent(agentName) {
   return ALL_AGENTS.find(a => a.name.toLowerCase() === (agentName || '').toLowerCase());
 }
 
-export function getAgentColor(agentName) {
+function getAgentColor(agentName) {
   const found = getAgent(agentName);
   return found ? found.color : '#ff4655';
 }
 
-export function getAgentRole(agentName) {
+function getAgentRole(agentName) {
   const found = getAgent(agentName);
   return found ? found.role : 'Agente';
 }
 
-export function getAgentIcon(agentName) {
+function getAgentIcon(agentName) {
   const found = getAgent(agentName);
   return found ? found.icon : 'https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png';
 }
 
 // Estrutura completa dos Mapas com URLs oficiais de Splash e ListView Icon
-export const MAPS_DATA = [
+const MAPS_DATA = [
   {
     id: 'ascent',
     name: 'Ascent',
@@ -356,10 +356,22 @@ export const MAPS_DATA = [
 ];
 
 // Dados padrão iniciais para cada jogador
-export const DEFAULT_PLAYERS = [
+const DEFAULT_PLAYERS = [
   { id: 1, name: 'Player 1', titular: '', reserva: '' },
   { id: 2, name: 'Player 2', titular: '', reserva: '' },
   { id: 3, name: 'Player 3', titular: '', reserva: '' },
   { id: 4, name: 'Player 4', titular: '', reserva: '' },
   { id: 5, name: 'Player 5', titular: '', reserva: '' }
 ];
+
+// Compatibilidade Universal (Global Window)
+window.ValorantData = {
+  AGENTS,
+  ALL_AGENTS,
+  MAPS_DATA,
+  DEFAULT_PLAYERS,
+  getAgent,
+  getAgentColor,
+  getAgentRole,
+  getAgentIcon
+};
