@@ -1409,7 +1409,7 @@ window.fetchTrackerAuto = async function() {
         <p class="text-amber-300 font-bold">⚠️ Para busca 100% ao vivo pela API Riot, cole sua chave HenrikDev acima.</p>
         <p class="text-gray-300">O Tracker.gg protege o site contra robôs via Cloudflare. Você pode abrir o Tracker oficial ou gerar a chave grátis!</p>
         <div class="flex items-center gap-2 pt-1">
-          <a href="https://dash.henrikdev.xyz" target="_blank" rel="noopener noreferrer" class="text-sky-400 font-bold underline">Obter Chave Grátis no Discord (10s) ↗</a>
+          <a href="https://api.henrikdev.xyz/dashboard/" target="_blank" rel="noopener noreferrer" class="text-sky-400 font-bold underline">Obter Chave Grátis no Discord (10s) ↗</a>
           <span class="text-gray-500">|</span>
           <a href="https://tracker.gg/valorant/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}/overview" target="_blank" rel="noopener noreferrer" class="text-emerald-400 font-bold underline">Abrir Perfil no Tracker.gg ↗</a>
         </div>
@@ -1427,7 +1427,7 @@ window.fetchTrackerAuto = async function() {
     });
 
     if (!accRes.ok) {
-      if (accRes.status === 401) throw new Error('Chave API inválida ou expirada. Gere uma nova em dash.henrikdev.xyz');
+      if (accRes.status === 401) throw new Error('Chave API inválida ou expirada. Gere uma nova em api.henrikdev.xyz/dashboard');
       if (accRes.status === 404) throw new Error(`Jogadora "${rawNick}" não encontrada. Verifique o Nick e a TAG.`);
       throw new Error(`Erro na API (${accRes.status}): ${accRes.statusText}`);
     }
