@@ -73,6 +73,7 @@ function initializeDefaultLineups() {
           flex2: '',
           flex3: '',
           kd: '',
+          rendimento: '',
           mostPlayed: []
         });
       }
@@ -431,12 +432,14 @@ function renderPlayersList() {
   const containerReserves = document.getElementById('reserves-list-container');
   if (!containerTitulares) return;
 
+  const activeMap = MAPS_DATA.find(m => m.id === state.activeMapId) || MAPS_DATA[0];
   const players = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
   const titulares = players.slice(0, 5);
   const reserves = players.slice(5, 7);
 
   // Renderiza os 5 Titulares
   containerTitulares.innerHTML = titulares.map((player, index) => {
+    const ratingVisual = getRatingVisuals(player.rendimento);
     const titularAgent = player.titular;
     const reservaAgent = player.reserva;
 
@@ -540,6 +543,13 @@ function renderPlayersList() {
                      onchange="window.updatePlayerKd(${index}, this.value)" 
                      class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
             </div>
+            <!-- Rendimento no Mapa -->
+            <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${ratingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10)">
+              <span class="text-[9px] font-tactical font-bold ${ratingVisual.labelColor}">Rend:</span>
+              <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="8.5" 
+                     onchange="window.updatePlayerRendimento(${index}, this.value)" 
+                     class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${ratingVisual.valColor} focus:outline-none text-center">
+            </div>
             <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker / Conforto)">
               <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
               ${mostPlayedIconsHtml}
@@ -615,6 +625,7 @@ function renderPlayersList() {
   if (containerReserves) {
     containerReserves.innerHTML = reserves.map((player, rIdx) => {
       const actualIndex = rIdx + 5;
+      const rRatingVisual = getRatingVisuals(player.rendimento);
       const hasTag = player.name && player.name.includes('#');
       let trackerLinkHtml = '';
       if (hasTag) {
@@ -727,7 +738,7 @@ function renderPlayersList() {
               </div>
             </div>
 
-            <!-- Stats Tracker: Link, Estatísticas, K/D e Mais Jogadas -->
+            <!-- Stats Tracker: Link, Estatísticas, K/D, Rendimento e Mais Jogadas -->
             <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
               ${trackerLinkHtml}
               <button onclick="window.openTrackerModal(${actualIndex})" 
@@ -741,6 +752,13 @@ function renderPlayersList() {
                 <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
                        onchange="window.updatePlayerKd(${actualIndex}, this.value)" 
                        class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
+              </div>
+              <!-- Rendimento no Mapa -->
+              <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${rRatingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10)">
+                <span class="text-[9px] font-tactical font-bold ${rRatingVisual.labelColor}">Rend:</span>
+                <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="8.5" 
+                       onchange="window.updatePlayerRendimento(${actualIndex}, this.value)" 
+                       class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${rRatingVisual.valColor} focus:outline-none text-center">
               </div>
               <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker)">
                 <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
@@ -759,6 +777,507 @@ function renderPlayersList() {
       `;
     }).join('');
   }
+
+  // Atualiza Diagnóstico Tático da Composição e Médias de Rendimento do Mapa
+  renderCompDiagnosticPanel();
+}
+
+// --------------------------------------------------------------------------
+// SISTEMA DE RENDIMENTO POR MAPA & SUGESTÕES TÁTICAS INTELIGENTES
+// --------------------------------------------------------------------------
+
+// Retorna cores, borda e tier baseado na nota de rendimento (0 a 10 ou 0 a 100)
+function getRatingVisuals(scoreStr) {
+  if (scoreStr === undefined || scoreStr === null || scoreStr === '') {
+    return {
+      border: 'border-[#223347]',
+      labelColor: 'text-gray-400',
+      valColor: 'text-gray-400',
+      tier: '-',
+      tierBadgeClass: 'bg-gray-900/80 text-gray-400 border-gray-700',
+      numeric: null
+    };
+  }
+
+  const cleaned = String(scoreStr).trim().replace(',', '.');
+  const num = parseFloat(cleaned);
+
+  if (isNaN(num)) {
+    return {
+      border: 'border-[#223347]',
+      labelColor: 'text-gray-400',
+      valColor: 'text-gray-400',
+      tier: '-',
+      tierBadgeClass: 'bg-gray-900/80 text-gray-400 border-gray-700',
+      numeric: null
+    };
+  }
+
+  // Normaliza valores digitados de 0 a 100 para 0 a 10 (ex: 85 -> 8.5)
+  const normalized = num > 10 && num <= 100 ? num / 10 : num;
+
+  if (normalized >= 9.0) {
+    return {
+      border: 'border-amber-400/60 shadow-[0_0_8px_rgba(251,191,36,0.25)]',
+      labelColor: 'text-amber-300',
+      valColor: 'text-amber-400 font-bold',
+      tier: 'Tier S',
+      tierBadgeClass: 'bg-amber-950/80 text-amber-300 border-amber-500/40',
+      numeric: normalized
+    };
+  } else if (normalized >= 7.5) {
+    return {
+      border: 'border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.2)]',
+      labelColor: 'text-emerald-400',
+      valColor: 'text-emerald-400 font-bold',
+      tier: 'Tier A',
+      tierBadgeClass: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40',
+      numeric: normalized
+    };
+  } else if (normalized >= 6.0) {
+    return {
+      border: 'border-sky-500/50 shadow-[0_0_8px_rgba(14,165,233,0.2)]',
+      labelColor: 'text-sky-400',
+      valColor: 'text-sky-400 font-bold',
+      tier: 'Tier B',
+      tierBadgeClass: 'bg-sky-950/80 text-sky-300 border-sky-500/40',
+      numeric: normalized
+    };
+  } else {
+    return {
+      border: 'border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.2)]',
+      labelColor: 'text-rose-400',
+      valColor: 'text-rose-400 font-bold',
+      tier: 'Tier C',
+      tierBadgeClass: 'bg-rose-950/80 text-rose-300 border-rose-500/40',
+      numeric: normalized
+    };
+  }
+}
+
+// Calcula a média de rendimento da equipe (titulares) no mapa
+function calculateTeamMapRating(mapId) {
+  const players = state.lineups[mapId] || DEFAULT_PLAYERS;
+  const titulares = players.slice(0, 5);
+
+  const validScores = titulares
+    .map(p => getRatingVisuals(p.rendimento).numeric)
+    .filter(n => n !== null && !isNaN(n));
+
+  if (validScores.length === 0) {
+    return {
+      avgStr: '--',
+      avgNum: null,
+      tier: 'Tier -',
+      tierClass: 'bg-gray-900/80 text-gray-400 border-gray-700',
+      count: 0
+    };
+  }
+
+  const sum = validScores.reduce((acc, curr) => acc + curr, 0);
+  const avg = sum / validScores.length;
+  const visual = getRatingVisuals(avg);
+
+  return {
+    avgStr: avg.toFixed(1),
+    avgNum: avg,
+    tier: visual.tier,
+    tierClass: visual.tierBadgeClass,
+    count: validScores.length
+  };
+}
+
+// Atualiza a nota de rendimento de uma jogadora no mapa ativo
+window.updatePlayerRendimento = function(playerIndex, newRend) {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  const cleanVal = (newRend || '').trim().replace(',', '.');
+  currentPlayers[playerIndex].rendimento = cleanVal;
+
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+
+  // Re-renderiza para atualizar imediatamente os cards e o painel de diagnóstico
+  renderPlayersList();
+};
+
+// Motor de Recomendação Tática Inteligente de Agentes
+function getSmartAgentRecommendations(mapId, targetPlayerIndex = null, slotType = 'titular') {
+  const mapData = MAPS_DATA.find(m => m.id === mapId) || MAPS_DATA[0];
+  const players = state.lineups[mapId] || DEFAULT_PLAYERS;
+  const titulares = players.slice(0, 5);
+
+  // Agentes já escalados pelos outros titulares (para evitar picks repetidos)
+  const pickedAgentsByOthers = [];
+  titulares.forEach((p, idx) => {
+    if (idx !== targetPlayerIndex && p.titular) {
+      pickedAgentsByOthers.push(p.titular.toLowerCase());
+    }
+  });
+
+  // Contagem atual de funções dos outros titulares
+  const roleCounts = {
+    'Controlador': 0,
+    'Iniciador': 0,
+    'Sentinela': 0,
+    'Duelista': 0
+  };
+  titulares.forEach((p, idx) => {
+    if (idx !== targetPlayerIndex && p.titular) {
+      const role = getAgentRole(p.titular);
+      if (roleCounts[role] !== undefined) {
+        roleCounts[role]++;
+      }
+    }
+  });
+
+  // Conforto da jogadora alvo (Tracker Top picks)
+  let comfortAgents = [];
+  if (targetPlayerIndex !== null && players[targetPlayerIndex]) {
+    const p = players[targetPlayerIndex];
+    if (Array.isArray(p.mostPlayed)) {
+      comfortAgents = p.mostPlayed.map(a => (a || '').toLowerCase());
+    }
+  }
+
+  // Agentes dos builds meta deste mapa
+  const builds = Array.isArray(mapData.builds) ? mapData.builds : [];
+  const buildWeights = new Map();
+
+  builds.forEach((build, bIdx) => {
+    const baseWeight = bIdx === 0 ? 60 : bIdx === 1 ? 40 : 30;
+    const tag = build.tag || build.title || 'Meta';
+    (build.agents || []).forEach(agName => {
+      const lower = agName.toLowerCase();
+      if (!buildWeights.has(lower)) {
+        buildWeights.set(lower, { weight: baseWeight, tag: tag });
+      } else {
+        const cur = buildWeights.get(lower);
+        cur.weight += 15;
+      }
+    });
+  });
+
+  // Sinergias Notórias de Mapa
+  const mapSynergies = {
+    breeze: ['Viper', 'Sova', 'Cypher', 'Jett', 'KAY/O', 'Harbor'],
+    bind: ['Brimstone', 'Raze', 'Viper', 'Skye', 'Fade', 'Cypher', 'Gekko'],
+    ascent: ['Omen', 'Sova', 'Killjoy', 'Jett', 'KAY/O'],
+    split: ['Raze', 'Omen', 'Cypher', 'Skye', 'Breach', 'Viper'],
+    haven: ['Omen', 'Sova', 'Killjoy', 'Jett', 'Breach'],
+    lotus: ['Omen', 'Fade', 'Killjoy', 'Raze', 'Viper', 'Tejo'],
+    sunset: ['Cypher', 'Omen', 'Raze', 'Fade', 'Breach', 'Gekko'],
+    abyss: ['Omen', 'Astra', 'Sova', 'Cypher', 'Jett', 'Tejo'],
+    icebox: ['Viper', 'Sova', 'Killjoy', 'Jett', 'Sage'],
+    fracture: ['Brimstone', 'Breach', 'Raze', 'Cypher', 'Fade'],
+    pearl: ['Astra', 'Viper', 'Fade', 'Killjoy', 'Jett']
+  };
+
+  const scoredAgents = [];
+
+  ALL_AGENTS.forEach(agent => {
+    const agentLower = agent.name.toLowerCase();
+
+    // Se for vaga titular, nunca sugerir agentes já escolhidos pelo resto do time
+    if (slotType === 'titular' && pickedAgentsByOthers.includes(agentLower)) {
+      return;
+    }
+
+    let score = 20;
+    const reasons = [];
+    let shortTag = '';
+
+    // 1. Urgência de Funções Faltantes
+    if (agent.role === 'Controlador') {
+      if (roleCounts['Controlador'] === 0) {
+        score += 120;
+        reasons.push('Falta Controlador (Smokes essenciais)');
+        shortTag = 'Smokes!';
+      } else if (roleCounts['Controlador'] === 1 && (mapId === 'breeze' || mapId === 'bind' || mapId === 'split' || mapId === 'lotus')) {
+        score += 35;
+        reasons.push('Double Controller Meta');
+        if (!shortTag) shortTag = '2º Smoke';
+      } else if (roleCounts['Controlador'] >= 2) {
+        score -= 40;
+      }
+    } else if (agent.role === 'Iniciador') {
+      if (roleCounts['Iniciador'] === 0) {
+        score += 95;
+        reasons.push('Falta Iniciador (Info e Flash)');
+        if (!shortTag) shortTag = 'Iniciação!';
+      } else if (roleCounts['Iniciador'] === 1 && (mapId === 'ascent' || mapId === 'haven' || mapId === 'sunset')) {
+        score += 30;
+        reasons.push('Double Initiator Meta');
+      } else if (roleCounts['Iniciador'] >= 2) {
+        score -= 40;
+      }
+    } else if (agent.role === 'Sentinela') {
+      if (roleCounts['Sentinela'] === 0) {
+        score += 90;
+        reasons.push('Falta Sentinela (Controle de Flanco)');
+        if (!shortTag) shortTag = 'Sentinela!';
+      } else if (roleCounts['Sentinela'] >= 2) {
+        score -= 50;
+      }
+    } else if (agent.role === 'Duelista') {
+      if (roleCounts['Duelista'] === 0) {
+        score += 85;
+        reasons.push('Falta Duelista (Entry frag)');
+        if (!shortTag) shortTag = 'Entry!';
+      } else if (roleCounts['Duelista'] >= 2) {
+        score -= 60;
+      }
+    }
+
+    // 2. Presença nas Builds Meta do Mapa
+    if (buildWeights.has(agentLower)) {
+      const bw = buildWeights.get(agentLower);
+      score += bw.weight;
+      reasons.push(`Meta de ${mapData.name} (${bw.tag})`);
+      if (!shortTag) shortTag = bw.tag;
+    }
+
+    // 3. Conforto da Jogadora (Tracker / Most Played)
+    const comfortRank = comfortAgents.indexOf(agentLower);
+    if (comfortRank !== -1) {
+      const comfortScore = 55 - (comfortRank * 10);
+      score += comfortScore;
+      reasons.push('Top Pick da Jogadora no Tracker');
+      if (!shortTag) shortTag = 'Conforto';
+    }
+
+    // 4. Sinergia com o Mapa
+    if (mapSynergies[mapId] && mapSynergies[mapId].map(a => a.toLowerCase()).includes(agentLower)) {
+      score += 25;
+      if (!reasons.some(r => r.includes(mapData.name))) {
+        reasons.push(`Forte em ${mapData.name}`);
+      }
+    }
+
+    scoredAgents.push({
+      name: agent.name,
+      role: agent.role,
+      icon: agent.icon,
+      color: agent.color,
+      score: score,
+      reason: reasons.slice(0, 2).join(' • ') || `Opção viável em ${mapData.name}`,
+      shortTag: shortTag || 'Meta'
+    });
+  });
+
+  scoredAgents.sort((a, b) => b.score - a.score);
+  return scoredAgents;
+}
+
+// Renderiza o Painel de Diagnóstico da Composição e Atualiza Rendimento Médio
+function renderCompDiagnosticPanel() {
+  const mapData = MAPS_DATA.find(m => m.id === state.activeMapId) || MAPS_DATA[0];
+  const players = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
+  const titulares = players.slice(0, 5);
+
+  // 1. Contagem de funções entre titulares
+  const roleCounts = {
+    'Duelista': 0,
+    'Iniciador': 0,
+    'Controlador': 0,
+    'Sentinela': 0
+  };
+
+  let totalPicked = 0;
+  titulares.forEach(p => {
+    if (p.titular) {
+      const role = getAgentRole(p.titular);
+      if (roleCounts[role] !== undefined) {
+        roleCounts[role]++;
+        totalPicked++;
+      }
+    }
+  });
+
+  const roleStyles = {
+    Duelista: {
+      active: 'bg-rose-950/60 border-rose-500/60 text-rose-300',
+      empty: 'bg-[#121d2b] border-[#23374c] text-gray-400'
+    },
+    Iniciador: {
+      active: 'bg-sky-950/60 border-sky-500/60 text-sky-300',
+      empty: 'bg-[#121d2b] border-[#23374c] text-gray-400'
+    },
+    Controlador: {
+      active: 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300',
+      empty: 'bg-[#121d2b] border-[#23374c] text-gray-400'
+    },
+    Sentinela: {
+      active: 'bg-amber-950/60 border-amber-500/60 text-amber-300',
+      empty: 'bg-[#121d2b] border-[#23374c] text-gray-400'
+    }
+  };
+
+  ['duelista', 'iniciador', 'controlador', 'sentinela'].forEach(roleKey => {
+    const capitalized = roleKey.charAt(0).toUpperCase() + roleKey.slice(1);
+    const count = roleCounts[capitalized] || 0;
+    const el = document.getElementById(`comp-role-${roleKey}`);
+    if (el) {
+      const style = count > 0 ? roleStyles[capitalized].active : roleStyles[capitalized].empty;
+      el.className = `px-2 py-0.5 rounded text-[10px] font-semibold border transition ${style}`;
+      el.innerHTML = `${capitalized}: <b class="${count > 0 ? 'text-white' : 'text-gray-400'}">${count}</b>`;
+    }
+  });
+
+  // 2. Status de equilíbrio da composição
+  const statusEl = document.getElementById('comp-status-badge');
+  if (statusEl) {
+    if (totalPicked === 0) {
+      statusEl.innerHTML = `<span class="text-gray-400 text-[11px] font-mono">0/5 Selecionados</span>`;
+    } else if (roleCounts['Controlador'] === 0 && totalPicked >= 2) {
+      statusEl.innerHTML = `
+        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-950/80 border border-rose-500/70 text-rose-300 animate-pulse flex items-center gap-1 shadow-sm">
+          <span>⚠️</span> Sem Smokes (Controlador)!
+        </span>
+      `;
+    } else if (roleCounts['Iniciador'] === 0 && totalPicked >= 3) {
+      statusEl.innerHTML = `
+        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/80 border border-amber-500/70 text-amber-300 flex items-center gap-1 shadow-sm">
+          <span>⚠️</span> Sem Iniciador (Info/Flash)
+        </span>
+      `;
+    } else if (roleCounts['Sentinela'] === 0 && totalPicked >= 3) {
+      statusEl.innerHTML = `
+        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/80 border border-amber-500/70 text-amber-300 flex items-center gap-1 shadow-sm">
+          <span>⚠️</span> Sem Sentinela (Controle de Flanco)
+        </span>
+      `;
+    } else if (roleCounts['Duelista'] === 0 && totalPicked >= 4) {
+      statusEl.innerHTML = `
+        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-950/80 border border-sky-500/70 text-sky-300 flex items-center gap-1 shadow-sm">
+          <span>💡</span> Sem Duelista (Entry)
+        </span>
+      `;
+    } else if (totalPicked === 5) {
+      statusEl.innerHTML = `
+        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/80 border border-emerald-500/70 text-emerald-300 flex items-center gap-1 shadow-sm">
+          <span>✅</span> Composição Completa & Equilibrada
+        </span>
+      `;
+    } else {
+      const remaining = 5 - totalPicked;
+      statusEl.innerHTML = `
+        <span class="text-sky-300 text-[11px] font-medium font-mono">
+          ${remaining} vaga${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''}
+        </span>
+      `;
+    }
+  }
+
+  // 3. Atualiza Rendimento Médio da Equipe no Banner
+  const teamRating = calculateTeamMapRating(state.activeMapId);
+  const desktopRatingVal = document.getElementById('map-team-rating-val');
+  const desktopRatingTier = document.getElementById('map-team-rating-tier');
+  const mobileRatingVal = document.getElementById('map-team-rating-val-mobile');
+
+  if (desktopRatingVal) {
+    desktopRatingVal.textContent = teamRating.avgStr;
+    desktopRatingVal.className = `font-mono font-bold text-lg ${teamRating.avgNum >= 9 ? 'text-amber-400' : teamRating.avgNum >= 7.5 ? 'text-emerald-400' : teamRating.avgNum >= 6 ? 'text-sky-400' : teamRating.avgNum !== null ? 'text-rose-400' : 'text-gray-400'}`;
+  }
+
+  if (desktopRatingTier) {
+    desktopRatingTier.textContent = teamRating.tier;
+    desktopRatingTier.className = `text-[9px] font-tactical uppercase font-bold px-1.5 py-0.2 rounded border ml-1 ${teamRating.tierClass}`;
+  }
+
+  if (mobileRatingVal) {
+    mobileRatingVal.innerHTML = teamRating.avgNum !== null 
+      ? `<span class="${teamRating.avgNum >= 7.5 ? 'text-emerald-400' : 'text-sky-300'}">${teamRating.avgStr}/10</span> <span class="text-[10px] text-gray-400">(${teamRating.tier})</span>`
+      : `<span class="text-gray-400">--/10</span>`;
+  }
+
+  // 4. Sugestões Táticas Rápidas de Agentes
+  const suggestionsChipsContainer = document.getElementById('comp-suggestions-chips');
+  if (suggestionsChipsContainer) {
+    const topRecs = getSmartAgentRecommendations(state.activeMapId, null, 'titular').slice(0, 4);
+    if (topRecs.length === 0) {
+      suggestionsChipsContainer.innerHTML = `<span class="text-[10px] text-gray-500 font-mono">Composição preenchida</span>`;
+    } else {
+      suggestionsChipsContainer.innerHTML = topRecs.map(rec => {
+        const icon = getAgentIcon(rec.name);
+        const color = getAgentColor(rec.name);
+        return `
+          <button onclick="window.handleQuickCompSuggestionClick('${escapeHtml(rec.name)}')"
+                  title="${escapeHtml(rec.reason)} (Clique para escalar no primeiro titular livre)"
+                  class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#142131] hover:bg-[#1a2d42] border border-[#2b415a] hover:border-amber-400/80 transition-all text-left shadow-sm group">
+            <img src="${icon}" alt="${rec.name}" class="w-4 h-4 rounded-full object-cover border flex-shrink-0" style="border-color: ${color}">
+            <span class="text-[11px] font-bold text-white group-hover:text-amber-300 transition">${rec.name}</span>
+            <span class="text-[8px] font-mono uppercase px-1 py-0.1 rounded bg-black/40 text-amber-300 border border-amber-500/20">${escapeHtml(rec.shortTag || rec.role)}</span>
+          </button>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// Trata clique nas sugestões rápidas da composição
+window.handleQuickCompSuggestionClick = function(agentName) {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers) return;
+
+  let emptyIndex = -1;
+  for (let i = 0; i < 5; i++) {
+    if (!currentPlayers[i].titular) {
+      emptyIndex = i;
+      break;
+    }
+  }
+
+  if (emptyIndex !== -1) {
+    currentPlayers[emptyIndex].titular = agentName;
+    saveCurrentState();
+    syncSavePlayer(state.activeMapId, emptyIndex, currentPlayers[emptyIndex], state.lineups);
+    renderPlayersList();
+    showToast(`${agentName} escalado para ${currentPlayers[emptyIndex].name || `Player ${emptyIndex + 1}`}!`, 'success');
+  } else {
+    window.openAgentModal(0, 'titular');
+    showToast(`Titulares já preenchidos! Abrindo seleção para troca se desejar.`, 'info');
+  }
+};
+
+// Renderiza sugestões táticas inteligentes dentro do modal de agentes
+function renderModalAgentSuggestions(playerIndex, slotType) {
+  const container = document.getElementById('modal-agent-suggestions');
+  const chipsGrid = document.getElementById('modal-suggestions-chips');
+  if (!container || !chipsGrid) return;
+
+  if (slotType && slotType.startsWith('top')) {
+    container.classList.add('hidden');
+    return;
+  }
+
+  const recommendations = getSmartAgentRecommendations(state.activeMapId, playerIndex, slotType).slice(0, 3);
+  if (recommendations.length === 0) {
+    container.classList.add('hidden');
+    return;
+  }
+
+  chipsGrid.innerHTML = recommendations.map(rec => {
+    const roleClass = `role-badge-${rec.role.toLowerCase()}`;
+    return `
+      <button onclick="window.selectAgent('${escapeHtml(rec.name)}')"
+              class="p-2 rounded-lg bg-[#0e1c2d] hover:bg-[#15273e] border border-sky-500/40 hover:border-amber-400 flex items-center gap-2 text-left transition group shadow-sm">
+        <img src="${rec.icon}" alt="${rec.name}" class="w-8 h-8 rounded object-cover border flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${rec.color}">
+        <div class="truncate flex-1 min-w-0">
+          <div class="flex items-center gap-1 truncate">
+            <span class="text-xs font-bold text-white group-hover:text-amber-300 truncate">${rec.name}</span>
+            <span class="text-[8px] font-mono px-1 py-0.2 rounded ${roleClass} uppercase flex-shrink-0">${rec.role}</span>
+          </div>
+          <span class="text-[9px] text-sky-300 font-tactical truncate block" title="${escapeHtml(rec.reason)}">
+            ★ ${escapeHtml(rec.reason)}
+          </span>
+        </div>
+      </button>
+    `;
+  }).join('');
+
+  container.classList.remove('hidden');
 }
 
 // --------------------------------------------------------------------------
@@ -1490,7 +2009,7 @@ window.replicateRosterToAllMaps = function() {
     const targetPlayers = state.lineups[map.id];
     currentPlayers.forEach((sourcePlayer, idx) => {
       if (!targetPlayers[idx]) {
-        targetPlayers[idx] = { id: idx + 1, titular: '', reserva: '', kd: '', mostPlayed: [] };
+        targetPlayers[idx] = { id: idx + 1, titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] };
       }
       targetPlayers[idx].name = sourcePlayer.name;
       targetPlayers[idx].kd = sourcePlayer.kd || '';
@@ -1808,6 +2327,7 @@ window.openAgentModal = function(playerIndex, slotType) {
   if (searchInput) searchInput.value = '';
 
   renderAgentsGrid('all', '');
+  renderModalAgentSuggestions(playerIndex, slotType);
 
   modal.classList.remove('hidden');
   modal.classList.add('flex');
@@ -1835,6 +2355,9 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
     }
   }
 
+  const recs = getSmartAgentRecommendations(state.activeMapId, state.activeModal.playerIndex, state.activeModal.agentSlot).slice(0, 4);
+  const recNames = recs.map(r => r.name.toLowerCase());
+
   const filtered = ALL_AGENTS.filter(agent => {
     const matchesRole = roleFilter === 'all' || agent.role === roleFilter;
     const matchesSearch = agent.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -1848,14 +2371,18 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
 
   grid.innerHTML = filtered.map(agent => {
     const isSelected = agent.name.toLowerCase() === currentSelection.toLowerCase();
+    const isRec = recNames.includes(agent.name.toLowerCase());
     const roleClass = `role-badge-${agent.role.toLowerCase()}`;
 
     return `
       <button onclick="window.selectAgent('${agent.name}')" 
-              class="p-1.5 sm:p-2 rounded-lg border text-left transition-all flex items-center gap-2 group min-w-0 ${isSelected ? 'bg-[#ff4655]/20 border-[#ff4655] shadow-[0_0_12px_rgba(255,70,85,0.35)] ring-1 ring-[#ff4655]' : 'bg-[#141e2b] border-[#223347] hover:border-[#ff4655] hover:bg-[#1c2a3d]'}">
+              class="p-1.5 sm:p-2 rounded-lg border text-left transition-all flex items-center gap-2 group min-w-0 ${isSelected ? 'bg-[#ff4655]/20 border-[#ff4655] shadow-[0_0_12px_rgba(255,70,85,0.35)] ring-1 ring-[#ff4655]' : isRec ? 'bg-[#142132] border-sky-500/40 hover:border-amber-400 hover:bg-[#1a2c42]' : 'bg-[#141e2b] border-[#223347] hover:border-[#ff4655] hover:bg-[#1c2a3d]'}">
         <img src="${agent.icon}" alt="${agent.name}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-md sm:rounded-lg object-cover bg-black/50 border flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${agent.color}" loading="lazy">
         <div class="truncate flex-1 min-w-0">
-          <span class="text-[11px] sm:text-xs font-bold text-white block truncate leading-tight">${agent.name}</span>
+          <div class="flex items-center gap-1">
+            <span class="text-[11px] sm:text-xs font-bold text-white block truncate leading-tight">${agent.name}</span>
+            ${isRec ? '<span class="text-[7px] font-bold uppercase font-tactical px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-500/30 flex-shrink-0">★ Meta</span>' : ''}
+          </div>
           <span class="text-[8px] sm:text-[9px] font-mono uppercase px-1 py-0.2 rounded inline-block mt-0.5 leading-none ${roleClass}">${agent.role}</span>
         </div>
       </button>
@@ -1999,10 +2526,14 @@ window.renderWhatsappSummary = function(viewMode) {
 function generateWhatsappMapText(mapId) {
   const mapData = MAPS_DATA.find(m => m.id === mapId) || MAPS_DATA[0];
   const players = state.lineups[mapId] || DEFAULT_PLAYERS;
+  const teamRating = calculateTeamMapRating(mapId);
 
   let text = `🎯 *LINEUP VALORANT* 🎯\n`;
   text += `🏆 *Equipe:* ${state.teamName}\n`;
   text += `📍 *Mapa:* ${mapData.name.toUpperCase()} ${mapData.isMeta ? '(Pool Ativo)' : '(Fora do Meta)'}\n`;
+  if (teamRating.avgNum !== null) {
+    text += `📊 *Rendimento Médio:* ${teamRating.avgStr}/10 (${teamRating.tier})\n`;
+  }
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
   // 5 Titulares
@@ -2011,7 +2542,8 @@ function generateWhatsappMapText(mapId) {
     const titular = p.titular || 'Não definido';
     const reserva = p.reserva ? `(Res: ${p.reserva})` : '';
     const kd = p.kd ? ` [K/D: ${p.kd}]` : '';
-    text += `${idx + 1}️⃣ *${p.name || `Player ${idx + 1}`}*${kd}: ${titular} ${reserva}\n`;
+    const rend = p.rendimento ? ` [Rend: ${p.rendimento}/10]` : '';
+    text += `${idx + 1}️⃣ *${p.name || `Player ${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
   });
 
   // 2 Reservas
@@ -2020,9 +2552,10 @@ function generateWhatsappMapText(mapId) {
     text += `\n👥 *RESERVAS & FLEX:*\n`;
     reserves.forEach((p, idx) => {
       const kd = p.kd ? ` [K/D: ${p.kd}]` : '';
+      const rend = p.rendimento ? ` [Rend: ${p.rendimento}/10]` : '';
       const flexPicks = [p.flex1, p.flex2, p.flex3].filter(Boolean);
       const flexStr = flexPicks.length > 0 ? flexPicks.join(', ') : 'Nenhum definido';
-      text += `R${idx + 1}️⃣ *${p.name || `Reserva ${idx + 1}`}*${kd}:\n`;
+      text += `R${idx + 1}️⃣ *${p.name || `Reserva ${idx + 1}`}*${kd}${rend}:\n`;
       text += `   ↳ _Flex:_ ${flexStr}\n`;
     });
   }
@@ -2040,19 +2573,23 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
   const metaMaps = MAPS_DATA.filter(m => m.isMeta);
   text += `🏆 *--- POOL DO CAMPEONATO (META) ---*\n\n`;
   metaMaps.forEach(map => {
-    text += `📍 *MAPA: ${map.name.toUpperCase()}*\n`;
+    const teamRating = calculateTeamMapRating(map.id);
+    const ratingStr = teamRating.avgNum !== null ? ` | Rend: ${teamRating.avgStr}/10 (${teamRating.tier})` : '';
+    text += `📍 *MAPA: ${map.name.toUpperCase()}*${ratingStr}\n`;
     const players = state.lineups[map.id] || DEFAULT_PLAYERS;
     players.slice(0, 5).forEach((p, idx) => {
       const titular = p.titular || '-';
       const reserva = p.reserva ? `[Res: ${p.reserva}]` : '';
       const kd = p.kd ? ` (${p.kd})` : '';
-      text += `• *${p.name || `P${idx + 1}`}*${kd}: ${titular} ${reserva}\n`;
+      const rend = p.rendimento ? ` [${p.rendimento}/10]` : '';
+      text += `• *${p.name || `P${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
     });
     const reserves = players.slice(5, 7);
     if (reserves.length > 0) {
       const flexList = reserves.map((r, rIdx) => {
         const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
-        return `${r.name || `R${rIdx + 1}`}${f ? ` [Flex: ${f}]` : ''}`;
+        const rend = r.rendimento ? ` [${r.rendimento}/10]` : '';
+        return `${r.name || `R${rIdx + 1}`}${rend}${f ? ` [Flex: ${f}]` : ''}`;
       }).join(' | ');
       text += `  ↳ _Suplentes:_ ${flexList}\n`;
     }
@@ -2063,19 +2600,23 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
     const benchMaps = MAPS_DATA.filter(m => !m.isMeta);
     text += `📦 *--- FORA DO META / RESERVA ---*\n\n`;
     benchMaps.forEach(map => {
-      text += `📍 *MAPA: ${map.name.toUpperCase()}*\n`;
+      const teamRating = calculateTeamMapRating(map.id);
+      const ratingStr = teamRating.avgNum !== null ? ` | Rend: ${teamRating.avgStr}/10 (${teamRating.tier})` : '';
+      text += `📍 *MAPA: ${map.name.toUpperCase()}*${ratingStr}\n`;
       const players = state.lineups[map.id] || DEFAULT_PLAYERS;
       players.slice(0, 5).forEach((p, idx) => {
         const titular = p.titular || '-';
         const reserva = p.reserva ? `[Res: ${p.reserva}]` : '';
         const kd = p.kd ? ` (${p.kd})` : '';
-        text += `• *${p.name || `P${idx + 1}`}*${kd}: ${titular} ${reserva}\n`;
+        const rend = p.rendimento ? ` [${p.rendimento}/10]` : '';
+        text += `• *${p.name || `P${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
       });
       const reserves = players.slice(5, 7);
       if (reserves.length > 0) {
         const flexList = reserves.map((r, rIdx) => {
           const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
-          return `${r.name || `R${rIdx + 1}`}${f ? ` [Flex: ${f}]` : ''}`;
+          const rend = r.rendimento ? ` [${r.rendimento}/10]` : '';
+          return `${r.name || `R${rIdx + 1}`}${rend}${f ? ` [Flex: ${f}]` : ''}`;
         }).join(' | ');
         text += `  ↳ _Suplentes:_ ${flexList}\n`;
       }

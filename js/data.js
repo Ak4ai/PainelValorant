@@ -492,13 +492,13 @@ const MAPS_DATA = [
 
 // Dados padrão iniciais para as jogadoras (5 Titulares + 2 Reservas Flex)
 const DEFAULT_PLAYERS = [
-  { id: 1, name: 'Player 1', titular: '', reserva: '', kd: '', mostPlayed: [] },
-  { id: 2, name: 'Player 2', titular: '', reserva: '', kd: '', mostPlayed: [] },
-  { id: 3, name: 'Player 3', titular: '', reserva: '', kd: '', mostPlayed: [] },
-  { id: 4, name: 'Player 4', titular: '', reserva: '', kd: '', mostPlayed: [] },
-  { id: 5, name: 'Player 5', titular: '', reserva: '', kd: '', mostPlayed: [] },
-  { id: 6, name: 'Reserva 1', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', mostPlayed: [] },
-  { id: 7, name: 'Reserva 2', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', mostPlayed: [] }
+  { id: 1, name: 'Player 1', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 2, name: 'Player 2', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 3, name: 'Player 3', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 4, name: 'Player 4', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 5, name: 'Player 5', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 6, name: 'Reserva 1', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 7, name: 'Reserva 2', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] }
 ];
 
 // Banco padrão de jogadoras cadastradas para Autocomplete rápido

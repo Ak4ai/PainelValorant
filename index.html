@@ -160,6 +160,16 @@
               <p class="text-xs text-gray-300 max-w-md hidden sm:block">Defina os agentes titulares e reservas das 5 jogadoras ou carregue uma comp meta.</p>
             </div>
           </div>
+
+          <!-- Badge: Rendimento Médio da Equipe no Mapa -->
+          <div id="map-team-rating-badge" class="ml-auto hidden md:flex flex-col items-end justify-center bg-[#090f17]/90 border border-[#233547] px-3.5 py-1.5 rounded-lg shadow-xl backdrop-blur-md">
+            <span class="text-[9px] font-tactical uppercase tracking-wider text-gray-400">Rendimento Médio no Mapa:</span>
+            <div class="flex items-center gap-1.5">
+              <span id="map-team-rating-val" class="font-mono font-bold text-lg text-emerald-400">--</span>
+              <span class="text-xs text-gray-400 font-mono">/10</span>
+              <span id="map-team-rating-tier" class="text-[9px] font-tactical uppercase font-bold px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 ml-1">Tier -</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -207,6 +217,53 @@
             </svg>
             <span>Copiar Mapa Atual</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Painel Tático Inteligente: Diagnóstico da Composição & Sugestões Meta do Mapa -->
+      <div id="comp-diagnostic-panel" class="mb-3.5 p-3 rounded-xl bg-[#0e1724] border border-[#22354a] shadow-lg">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pb-2.5 border-b border-[#1b2b3d]">
+          <!-- Funções preenchidas na comp -->
+          <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
+            <span class="text-[10px] uppercase font-tactical font-bold text-gray-400 flex items-center gap-1">
+              <span>🛡️</span> Funções:
+            </span>
+            <span id="comp-role-duelista" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#121d2b] border border-[#23374c] text-gray-300">
+              Duelista: <b>0</b>
+            </span>
+            <span id="comp-role-iniciador" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#121d2b] border border-[#23374c] text-gray-300">
+              Iniciador: <b>0</b>
+            </span>
+            <span id="comp-role-controlador" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#121d2b] border border-[#23374c] text-gray-300">
+              Controlador: <b>0</b>
+            </span>
+            <span id="comp-role-sentinela" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#121d2b] border border-[#23374c] text-gray-300">
+              Sentinela: <b>0</b>
+            </span>
+          </div>
+
+          <!-- Status de Equilíbrio / Alerta -->
+          <div id="comp-status-badge" class="flex items-center gap-1.5 text-xs font-semibold text-sky-300 flex-shrink-0">
+            <!-- Injetado dinamicamente -->
+          </div>
+        </div>
+
+        <!-- Sugestões Táticas Rápidas para Completar a Composição do Mapa -->
+        <div class="mt-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 flex-wrap" id="comp-quick-suggestions-list">
+            <span class="text-[10px] font-tactical uppercase font-bold text-amber-300 flex items-center gap-1 flex-shrink-0">
+              <span>💡</span> Sugestões Meta:
+            </span>
+            <div id="comp-suggestions-chips" class="flex items-center gap-1.5 flex-wrap">
+              <!-- Chips de agentes recomendados -->
+            </div>
+          </div>
+
+          <!-- Média de Rendimento mobile / compacta -->
+          <div class="flex md:hidden items-center gap-1.5 text-xs text-gray-300 self-end sm:self-auto flex-shrink-0">
+            <span class="text-[10px] text-gray-400 font-tactical uppercase">Rend. Médio:</span>
+            <span id="map-team-rating-val-mobile" class="font-mono font-bold text-emerald-400">--/10</span>
+          </div>
         </div>
       </div>
 
@@ -279,6 +336,19 @@
           <button data-role="Iniciadores" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Iniciadores</button>
           <button data-role="Controladores" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Controladores</button>
           <button data-role="Sentinelas" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Sentinelas</button>
+        </div>
+      </div>
+
+      <!-- Sugestões Táticas Inteligentes para o Agente Selecionado -->
+      <div id="modal-agent-suggestions" class="mt-2.5 p-2.5 rounded-lg bg-[#0a1624] border border-sky-500/40 hidden">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] sm:text-xs font-tactical font-bold text-sky-300 flex items-center gap-1">
+            <span>💡</span> RECOMENDADOS PARA ESTE MAPA & TIME:
+          </span>
+          <span class="text-[9px] text-emerald-400 font-mono">1-Clique para Escolher</span>
+        </div>
+        <div id="modal-suggestions-chips" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          <!-- Injetado dinamicamente via JS -->
         </div>
       </div>
 
