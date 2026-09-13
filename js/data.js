@@ -210,9 +210,11 @@ function getAgentIcon(agentName) {
 
 // Estrutura completa dos Mapas com URLs oficiais de Splash e ListView Icon
 const MAPS_DATA = [
+  // --- POOL DO CAMPEONATO (META) ---
   {
     id: 'ascent',
     name: 'Ascent',
+    isMeta: true,
     accentColor: '#3a78c4',
     splash: 'https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png',
     listViewIcon: 'https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/listviewicon.png',
@@ -237,6 +239,7 @@ const MAPS_DATA = [
   {
     id: 'haven',
     name: 'Haven',
+    isMeta: true,
     accentColor: '#cf5a32',
     splash: 'https://media.valorant-api.com/maps/2bee0dc9-4ffe-519b-1cbd-7fbe763a6047/splash.png',
     listViewIcon: 'https://media.valorant-api.com/maps/2bee0dc9-4ffe-519b-1cbd-7fbe763a6047/listviewicon.png',
@@ -261,6 +264,7 @@ const MAPS_DATA = [
   {
     id: 'lotus',
     name: 'Lotus',
+    isMeta: true,
     accentColor: '#c9963e',
     splash: 'https://media.valorant-api.com/maps/2fe4ed3a-450a-948b-6d6b-e89a78e680a9/splash.png',
     listViewIcon: 'https://media.valorant-api.com/maps/2fe4ed3a-450a-948b-6d6b-e89a78e680a9/listviewicon.png',
@@ -285,6 +289,7 @@ const MAPS_DATA = [
   {
     id: 'split',
     name: 'Split',
+    isMeta: true,
     accentColor: '#30988e',
     splash: 'https://media.valorant-api.com/maps/d960549e-485c-e861-8d71-aa9d1aed12a2/splash.png',
     listViewIcon: 'https://media.valorant-api.com/maps/d960549e-485c-e861-8d71-aa9d1aed12a2/listviewicon.png',
@@ -309,6 +314,7 @@ const MAPS_DATA = [
   {
     id: 'sunset',
     name: 'Sunset',
+    isMeta: true,
     accentColor: '#e07246',
     splash: 'https://media.valorant-api.com/maps/92584fbe-486a-b1b2-9faa-39b0f486b498/splash.png',
     listViewIcon: 'https://media.valorant-api.com/maps/92584fbe-486a-b1b2-9faa-39b0f486b498/listviewicon.png',
@@ -332,7 +338,8 @@ const MAPS_DATA = [
   },
   {
     id: 'abyss',
-    name: 'Abyss / Outros',
+    name: 'Abyss',
+    isMeta: true,
     accentColor: '#4f3dc4',
     splash: 'https://media.valorant-api.com/maps/224b0a95-48b9-f703-1bd8-67aca101a61f/splash.png',
     listViewIcon: 'https://media.valorant-api.com/maps/224b0a95-48b9-f703-1bd8-67aca101a61f/listviewicon.png',
@@ -351,6 +358,133 @@ const MAPS_DATA = [
         title: 'Ex3 (Explosiva)',
         tag: 'Agressão Explosiva',
         agents: ['Neon', 'Omen', 'Chamber', 'Skye', 'Sova']
+      }
+    ]
+  },
+
+  // --- FORA DO META / FORA DA ROTAÇÃO (5 MAPAS) ---
+  {
+    id: 'bind',
+    name: 'Bind',
+    isMeta: false,
+    accentColor: '#e89a3c',
+    splash: 'https://media.valorant-api.com/maps/2c9d57ec-4431-9c5e-2939-8f9ef6dd5cba/splash.png',
+    listViewIcon: 'https://media.valorant-api.com/maps/2c9d57ec-4431-9c5e-2939-8f9ef6dd5cba/listviewicon.png',
+    builds: [
+      {
+        title: 'Ex1 (Meta Tradicional)',
+        tag: 'Controle de TP',
+        agents: ['Raze', 'Viper', 'Brimstone', 'Skye', 'Cypher']
+      },
+      {
+        title: 'Ex2 (Duplo Duelista)',
+        tag: 'Agressão Rápida',
+        agents: ['Raze', 'Yoru', 'Fade', 'Brimstone', 'Cypher']
+      },
+      {
+        title: 'Ex3 (Info & Utilitários)',
+        tag: 'Controle de Espaço',
+        agents: ['Raze', 'Viper', 'Brimstone', 'Gekko', 'Deadlock']
+      }
+    ]
+  },
+  {
+    id: 'icebox',
+    name: 'Icebox',
+    isMeta: false,
+    accentColor: '#5bc0be',
+    splash: 'https://media.valorant-api.com/maps/e2ad5c54-4114-a870-9641-8ea21279579a/splash.png',
+    listViewIcon: 'https://media.valorant-api.com/maps/e2ad5c54-4114-a870-9641-8ea21279579a/listviewicon.png',
+    builds: [
+      {
+        title: 'Ex1 (Padrão Meta)',
+        tag: 'Verticalidade / A-Site',
+        agents: ['Jett', 'Viper', 'Sova', 'Killjoy', 'Sage']
+      },
+      {
+        title: 'Ex2 (Lockdown)',
+        tag: 'Trava B-Long',
+        agents: ['Jett', 'Viper', 'Sova', 'Killjoy', 'Chamber']
+      },
+      {
+        title: 'Ex3 (Pressão & Utilitários)',
+        tag: 'Gekko & KAY/O',
+        agents: ['Jett', 'Viper', 'Gekko', 'KAY/O', 'Killjoy']
+      }
+    ]
+  },
+  {
+    id: 'breeze',
+    name: 'Breeze',
+    isMeta: false,
+    accentColor: '#00b4d8',
+    splash: 'https://media.valorant-api.com/maps/2fb9a4fd-47b8-4e7d-a969-74b4046ebd53/splash.png',
+    listViewIcon: 'https://media.valorant-api.com/maps/2fb9a4fd-47b8-4e7d-a969-74b4046ebd53/listviewicon.png',
+    builds: [
+      {
+        title: 'Ex1 (Meta Longa Distância)',
+        tag: 'Controle Amplo',
+        agents: ['Jett', 'Viper', 'Sova', 'Cypher', 'KAY/O']
+      },
+      {
+        title: 'Ex2 (Flashes & Espaço)',
+        tag: 'Abertura Rápida',
+        agents: ['Yoru', 'Viper', 'Sova', 'Cypher', 'Skye']
+      },
+      {
+        title: 'Ex3 (Duplo Controlador)',
+        tag: 'Viper + Harbor',
+        agents: ['Jett', 'Viper', 'Harbor', 'Sova', 'Cypher']
+      }
+    ]
+  },
+  {
+    id: 'fracture',
+    name: 'Fracture',
+    isMeta: false,
+    accentColor: '#7b2cbf',
+    splash: 'https://media.valorant-api.com/maps/b529448b-4d60-346e-e89e-00a4c527a405/splash.png',
+    listViewIcon: 'https://media.valorant-api.com/maps/b529448b-4d60-346e-e89e-00a4c527a405/listviewicon.png',
+    builds: [
+      {
+        title: 'Ex1 (Meta Agressivo)',
+        tag: 'Pincer Attack A/B',
+        agents: ['Raze', 'Breach', 'Brimstone', 'Fade', 'Cypher']
+      },
+      {
+        title: 'Ex2 (Neon Rush)',
+        tag: 'Velocidade & Stun',
+        agents: ['Neon', 'Breach', 'Brimstone', 'Fade', 'Killjoy']
+      },
+      {
+        title: 'Ex3 (Duplo Sentinela)',
+        tag: 'Travamento Flancos',
+        agents: ['Raze', 'Breach', 'Brimstone', 'Cypher', 'Killjoy']
+      }
+    ]
+  },
+  {
+    id: 'pearl',
+    name: 'Pearl',
+    isMeta: false,
+    accentColor: '#3a86ff',
+    splash: 'https://media.valorant-api.com/maps/fd267378-4d1d-484f-ff52-77821ed10dc2/splash.png',
+    listViewIcon: 'https://media.valorant-api.com/maps/fd267378-4d1d-484f-ff52-77821ed10dc2/listviewicon.png',
+    builds: [
+      {
+        title: 'Ex1 (Meta B-Long)',
+        tag: 'Controle B-Long',
+        agents: ['Jett', 'Astra', 'Fade', 'Killjoy', 'KAY/O']
+      },
+      {
+        title: 'Ex2 (Domínio de Espaço)',
+        tag: 'Astra + Viper',
+        agents: ['Jett', 'Astra', 'Viper', 'Fade', 'Killjoy']
+      },
+      {
+        title: 'Ex3 (Pressão no Meio)',
+        tag: 'Iniciador Duplo',
+        agents: ['Jett', 'Astra', 'Skye', 'Fade', 'Killjoy']
       }
     ]
   }

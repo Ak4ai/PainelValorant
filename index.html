@@ -111,9 +111,23 @@
 
   <!-- Navegação de Mapas (Tabs Deslizantes) -->
   <section class="max-w-6xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4 w-full">
-    <div class="flex items-center justify-between mb-1.5">
-      <h2 class="text-[11px] sm:text-xs uppercase font-tactical font-semibold tracking-widest text-gray-400">Mapas Oficiais:</h2>
-      <span class="text-[10px] text-gray-500 sm:hidden">Deslize para ver todos &rarr;</span>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
+        <span class="text-[10px] sm:text-xs uppercase font-tactical font-semibold tracking-wider text-gray-400 whitespace-nowrap">Filtro:</span>
+        <button id="pool-filter-meta" onclick="window.filterMapPool('meta')" class="btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#ff4655] text-white shadow-[0_0_10px_rgba(255,70,85,0.3)] whitespace-nowrap flex-shrink-0">
+          <span>🏆 Pool Campeonato</span>
+          <span class="text-[9px] bg-black/30 px-1 rounded">6</span>
+        </button>
+        <button id="pool-filter-bench" onclick="window.filterMapPool('bench')" class="btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-amber-300 hover:text-white border border-[#233547] hover:border-amber-500/50 whitespace-nowrap flex-shrink-0">
+          <span>📦 Fora do Meta</span>
+          <span class="text-[9px] bg-black/30 px-1 rounded">5</span>
+        </button>
+        <button id="pool-filter-all" onclick="window.filterMapPool('all')" class="btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-gray-400 hover:text-white border border-[#233547] whitespace-nowrap flex-shrink-0">
+          <span>Todos</span>
+          <span class="text-[9px] bg-black/30 px-1 rounded">11</span>
+        </button>
+      </div>
+      <span class="text-[10px] text-gray-500 hidden md:inline">Deslize para ver todos &rarr;</span>
     </div>
     
     <div id="map-tabs-list" class="map-tabs-container flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 -mx-1 px-1 w-full max-w-full">
@@ -339,10 +353,11 @@
         </button>
       </div>
 
-      <!-- Abas: Mapa Atual vs Todos os Mapas -->
-      <div class="mt-2.5 flex gap-1.5 border-b border-[#1e2c3c] pb-2">
-        <button id="tab-btn-current-map" onclick="window.renderWhatsappSummary('current')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white">Mapa Atual</button>
-        <button id="tab-btn-all-maps" onclick="window.renderWhatsappSummary('all')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142]">Todos os Mapas</button>
+      <!-- Abas: Mapa Atual vs Pool do Campeonato vs Todos os Mapas -->
+      <div class="mt-2.5 flex gap-1.5 border-b border-[#1e2c3c] pb-2 overflow-x-auto">
+        <button id="tab-btn-current-map" onclick="window.renderWhatsappSummary('current')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white whitespace-nowrap">Mapa Atual</button>
+        <button id="tab-btn-meta-maps" onclick="window.renderWhatsappSummary('meta')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142] whitespace-nowrap">🏆 Pool Campeonato (6)</button>
+        <button id="tab-btn-all-maps" onclick="window.renderWhatsappSummary('all')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142] whitespace-nowrap">📦 Todos os Mapas (11)</button>
       </div>
 
       <!-- Caixa de Texto Formatada -->

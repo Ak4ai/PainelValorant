@@ -15,13 +15,14 @@ const {
 // Estado Global da Aplicação
 const state = {
   activeMapId: 'ascent',
+  mapPoolFilter: 'meta', // 'meta' (Pool Campeonato), 'bench' (Fora do Meta), 'all' (Todos)
   teamName: getSavedTeamName(),
   lineups: {}, // Estrutura: { ascent: [ {id, name, titular, reserva}, ... ], haven: [...] }
   activeModal: {
     playerIndex: null,
     agentSlot: null // 'titular' ou 'reserva'
   },
-  whatsappView: 'current' // 'current' ou 'all'
+  whatsappView: 'current' // 'current', 'meta' ou 'all'
 };
 
 // Inicializa a estrutura de lineups com os dados padrão se não existirem
@@ -104,25 +105,97 @@ function setupTeamNameInput() {
   });
 }
 
+// Retorna os mapas de acordo com o filtro ativo
+function getVisibleMaps() {
+  if (state.mapPoolFilter === 'meta') {
+    return MAPS_DATA.filter(m => m.isMeta);
+  } else if (state.mapPoolFilter === 'bench') {
+    return MAPS_DATA.filter(m => !m.isMeta);
+  }
+  return MAPS_DATA;
+}
+
+// Filtra a exibição dos mapas no carrossel
+window.filterMapPool = function(filterType) {
+  state.mapPoolFilter = filterType;
+  updateFilterButtonsUI();
+
+  const visibleMaps = getVisibleMaps();
+  if (!visibleMaps.some(m => m.id === state.activeMapId) && visibleMaps.length > 0) {
+    window.switchMap(visibleMaps[0].id);
+  } else {
+    renderMapTabs();
+  }
+};
+
+function updateFilterButtonsUI() {
+  const btnMeta = document.getElementById('pool-filter-meta');
+  const btnBench = document.getElementById('pool-filter-bench');
+  const btnAll = document.getElementById('pool-filter-all');
+
+  const activeMeta = 'btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#ff4655] text-white shadow-[0_0_10px_rgba(255,70,85,0.3)] whitespace-nowrap flex-shrink-0';
+  const activeBench = 'btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-amber-600 text-white shadow-[0_0_10px_rgba(217,119,6,0.4)] whitespace-nowrap flex-shrink-0';
+  const activeAll = 'btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#253549] text-white shadow-sm whitespace-nowrap flex-shrink-0';
+
+  const inactiveBtn = 'btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-gray-400 hover:text-white border border-[#233547] whitespace-nowrap flex-shrink-0';
+
+  if (btnMeta) btnMeta.className = state.mapPoolFilter === 'meta' ? activeMeta : inactiveBtn;
+  if (btnBench) btnBench.className = state.mapPoolFilter === 'bench' ? activeBench : inactiveBtn;
+  if (btnAll) btnAll.className = state.mapPoolFilter === 'all' ? activeAll : inactiveBtn;
+}
+
 // Renderiza as Tabs dos Mapas
 function renderMapTabs() {
   const container = document.getElementById('map-tabs-list');
   if (!container) return;
 
-  container.innerHTML = MAPS_DATA.map(map => {
-    const isActive = map.id === state.activeMapId;
-    const activeClasses = isActive 
-      ? 'bg-[#ff4655] text-white font-bold border-[#ff4655] shadow-[0_0_15px_rgba(255,70,85,0.45)] ring-1 ring-white/30' 
-      : 'bg-[#101822] text-gray-300 border-[#1e2c3c] hover:bg-[#16212e] hover:border-gray-500';
+  const mapsToRender = getVisibleMaps();
+  let html = '';
+  let renderedBenchDivider = false;
 
-    return `
+  mapsToRender.forEach(map => {
+    // Insere divisor visual se estiver exibindo todos os mapas e começou a lista dos fora do meta
+    if (state.mapPoolFilter === 'all' && !map.isMeta && !renderedBenchDivider) {
+      renderedBenchDivider = true;
+      html += `
+        <div class="flex items-center gap-1 px-2 py-1 bg-[#161a22] border border-amber-500/40 rounded text-amber-300 text-[10px] font-tactical font-bold whitespace-nowrap flex-shrink-0 shadow-inner">
+          <span>📦 FORA DO META:</span>
+        </div>
+      `;
+    }
+
+    const isActive = map.id === state.activeMapId;
+    let activeClasses = '';
+
+    if (isActive) {
+      if (map.isMeta) {
+        activeClasses = 'bg-[#ff4655] text-white font-bold border-[#ff4655] shadow-[0_0_15px_rgba(255,70,85,0.45)] ring-1 ring-white/30';
+      } else {
+        activeClasses = 'bg-amber-600 text-white font-bold border-amber-400 shadow-[0_0_15px_rgba(217,119,6,0.45)] ring-1 ring-white/30';
+      }
+    } else {
+      if (map.isMeta) {
+        activeClasses = 'bg-[#101822] text-gray-300 border-[#1e2c3c] hover:bg-[#16212e] hover:border-gray-500';
+      } else {
+        activeClasses = 'bg-[#141922] text-amber-200/80 border-amber-900/40 hover:bg-[#1c2330] hover:border-amber-600/50';
+      }
+    }
+
+    const benchBadge = !map.isMeta 
+      ? `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-amber-950/80 text-amber-400 border border-amber-500/30 ml-0.5 leading-none">FORA</span>` 
+      : '';
+
+    html += `
       <button onclick="window.switchMap('${map.id}')" 
               class="btn-tactical px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-tactical rounded border transition-all whitespace-nowrap flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ${activeClasses}">
         <img src="${map.listViewIcon}" alt="${map.name}" class="w-6 h-3.5 sm:w-8 sm:h-4 object-cover rounded border border-white/20 shadow-sm flex-shrink-0" loading="lazy">
         <span>${map.name}</span>
+        ${benchBadge}
       </button>
     `;
-  }).join('');
+  });
+
+  container.innerHTML = html;
 }
 
 // Troca de Mapa
@@ -141,6 +214,7 @@ function renderActiveMap() {
   const bannerImg = document.getElementById('map-banner-img');
   const bottomBarMap = document.getElementById('bottom-bar-map-name');
   const mapIconThumb = document.getElementById('map-icon-thumb');
+  const mapTagline = document.getElementById('map-tagline');
 
   if (titleEl) titleEl.textContent = currentMap.name;
   if (bottomBarMap) bottomBarMap.textContent = currentMap.name;
@@ -150,6 +224,16 @@ function renderActiveMap() {
   if (mapIconThumb) {
     mapIconThumb.src = currentMap.listViewIcon;
     mapIconThumb.alt = currentMap.name;
+  }
+
+  if (mapTagline) {
+    if (currentMap.isMeta) {
+      mapTagline.className = 'text-[9px] sm:text-xs uppercase font-tactical text-[#ff4655] font-bold tracking-widest flex items-center gap-1';
+      mapTagline.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-[#ff4655] animate-pulse"></span> 🏆 POOL DO CAMPEONATO (META)';
+    } else {
+      mapTagline.className = 'text-[9px] sm:text-xs uppercase font-tactical text-amber-400 font-bold tracking-widest flex items-center gap-1';
+      mapTagline.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> 📦 FORA DO META / RESERVA';
+    }
   }
 
   // Renderiza as 3 Builds Sugeridas
@@ -515,17 +599,25 @@ window.renderWhatsappSummary = function(viewMode) {
   state.whatsappView = viewMode;
 
   const btnCurrent = document.getElementById('tab-btn-current-map');
+  const btnMeta = document.getElementById('tab-btn-meta-maps');
   const btnAll = document.getElementById('tab-btn-all-maps');
   const preview = document.getElementById('whatsapp-preview-text');
 
-  if (viewMode === 'current') {
-    btnCurrent.className = 'px-3 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white';
-    btnAll.className = 'px-3 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142]';
-    preview.value = generateWhatsappMapText(state.activeMapId);
-  } else {
-    btnAll.className = 'px-3 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white';
-    btnCurrent.className = 'px-3 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142]';
-    preview.value = generateWhatsappAllMapsText();
+  const inactiveClass = 'px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142] whitespace-nowrap';
+  const activeClass = 'px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white whitespace-nowrap';
+
+  if (btnCurrent) btnCurrent.className = viewMode === 'current' ? activeClass : inactiveClass;
+  if (btnMeta) btnMeta.className = viewMode === 'meta' ? activeClass : inactiveClass;
+  if (btnAll) btnAll.className = viewMode === 'all' ? activeClass : inactiveClass;
+
+  if (preview) {
+    if (viewMode === 'current') {
+      preview.value = generateWhatsappMapText(state.activeMapId);
+    } else if (viewMode === 'meta') {
+      preview.value = generateWhatsappGroupedMapsText(true);
+    } else {
+      preview.value = generateWhatsappGroupedMapsText(false);
+    }
   }
 };
 
@@ -535,7 +627,7 @@ function generateWhatsappMapText(mapId) {
 
   let text = `🎯 *LINEUP VALORANT* 🎯\n`;
   text += `🏆 *Equipe:* ${state.teamName}\n`;
-  text += `📍 *Mapa:* ${mapData.name.toUpperCase()}\n`;
+  text += `📍 *Mapa:* ${mapData.name.toUpperCase()} ${mapData.isMeta ? '(Pool Ativo)' : '(Fora do Meta)'}\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
   players.forEach((p, idx) => {
@@ -549,12 +641,14 @@ function generateWhatsappMapText(mapId) {
   return text;
 }
 
-function generateWhatsappAllMapsText() {
-  let text = `🎯 *ESCALAÇÃO COMPLETA VALORANT* 🎯\n`;
+function generateWhatsappGroupedMapsText(onlyMeta = false) {
+  let text = `🎯 *ESCALAÇÃO DE LINEUP VALORANT* 🎯\n`;
   text += `🏆 *Equipe:* ${state.teamName}\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-  MAPS_DATA.forEach(map => {
+  const metaMaps = MAPS_DATA.filter(m => m.isMeta);
+  text += `🏆 *--- POOL DO CAMPEONATO (META) ---*\n\n`;
+  metaMaps.forEach(map => {
     text += `📍 *MAPA: ${map.name.toUpperCase()}*\n`;
     const players = state.lineups[map.id] || DEFAULT_PLAYERS;
     players.forEach((p, idx) => {
@@ -564,6 +658,21 @@ function generateWhatsappAllMapsText() {
     });
     text += `\n`;
   });
+
+  if (!onlyMeta) {
+    const benchMaps = MAPS_DATA.filter(m => !m.isMeta);
+    text += `📦 *--- FORA DO META / RESERVA ---*\n\n`;
+    benchMaps.forEach(map => {
+      text += `📍 *MAPA: ${map.name.toUpperCase()}*\n`;
+      const players = state.lineups[map.id] || DEFAULT_PLAYERS;
+      players.forEach((p, idx) => {
+        const titular = p.titular || '-';
+        const reserva = p.reserva ? `[Res: ${p.reserva}]` : '';
+        text += `• *${p.name || `P${idx + 1}`}:* ${titular} ${reserva}\n`;
+      });
+      text += `\n`;
+    });
+  }
 
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `⚡ _Painel Tático Atualizado_`;
