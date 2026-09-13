@@ -124,12 +124,18 @@
     
     <!-- Banner do Mapa Atual -->
     <div id="active-map-banner" class="tactical-card rounded-lg overflow-hidden border border-[#233547] relative mb-6">
-      <div id="map-banner-img" class="h-28 sm:h-36 w-full bg-cover bg-center transition-all duration-300 relative">
-        <div class="absolute inset-0 bg-gradient-to-r from-[#090e14] via-[#090e14]/80 to-transparent flex items-center px-4 sm:px-6">
-          <div>
-            <span id="map-tagline" class="text-xs uppercase font-tactical text-[#ff4655] font-bold tracking-widest">Mapa Oficial</span>
-            <h2 id="active-map-title" class="text-3xl sm:text-4xl font-hero font-bold text-white tracking-wide">ASCENT</h2>
-            <p class="text-xs text-gray-300 max-w-md hidden sm:block">Defina os agentes titulares e reservas das 5 jogadoras ou carregue uma comp meta.</p>
+      <div id="map-banner-img" class="h-32 sm:h-40 w-full bg-cover bg-center transition-all duration-500 relative">
+        <div class="absolute inset-0 bg-gradient-to-r from-[#090e14] via-[#090e14]/85 to-transparent flex items-center px-4 sm:px-6">
+          <div class="flex items-center gap-3.5 sm:gap-5">
+            <img id="map-icon-thumb" src="" alt="Mapa" class="w-20 h-12 sm:w-28 sm:h-16 object-cover rounded-lg border-2 border-[#ff4655]/40 shadow-2xl flex-shrink-0">
+            <div>
+              <span id="map-tagline" class="text-[10px] sm:text-xs uppercase font-tactical text-[#ff4655] font-bold tracking-widest flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#ff4655] animate-pulse"></span>
+                Mapa Oficial
+              </span>
+              <h2 id="active-map-title" class="text-3xl sm:text-4xl font-hero font-bold text-white tracking-wide leading-none my-0.5">ASCENT</h2>
+              <p class="text-xs text-gray-300 max-w-md hidden sm:block">Defina os agentes titulares e reservas das 5 jogadoras ou carregue uma comp meta.</p>
+            </div>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, getAgentColor, getAgentRole } from './data.js';
+import { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, getAgentColor, getAgentRole, getAgentIcon } from './data.js';
 import { 
   initRealtimeSync, 
   syncSaveData, 
@@ -111,13 +111,13 @@ function renderMapTabs() {
   container.innerHTML = MAPS_DATA.map(map => {
     const isActive = map.id === state.activeMapId;
     const activeClasses = isActive 
-      ? 'bg-[#ff4655] text-white font-bold border-[#ff4655] shadow-[0_0_12px_rgba(255,70,85,0.4)]' 
-      : 'bg-[#101822] text-gray-300 border-[#1e2c3c] hover:bg-[#16212e] hover:border-gray-600';
+      ? 'bg-[#ff4655] text-white font-bold border-[#ff4655] shadow-[0_0_15px_rgba(255,70,85,0.45)] ring-1 ring-white/30' 
+      : 'bg-[#101822] text-gray-300 border-[#1e2c3c] hover:bg-[#16212e] hover:border-gray-500';
 
     return `
       <button onclick="window.switchMap('${map.id}')" 
-              class="btn-tactical px-3.5 py-2 text-xs font-tactical rounded border transition-all whitespace-nowrap flex items-center gap-1.5 ${activeClasses}">
-        <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${map.accentColor}"></span>
+              class="btn-tactical px-3 py-1.5 text-xs font-tactical rounded border transition-all whitespace-nowrap flex items-center gap-2 ${activeClasses}">
+        <img src="${map.listViewIcon}" alt="${map.name}" class="w-8 h-4 object-cover rounded border border-white/20 shadow-sm flex-shrink-0" loading="lazy">
         <span>${map.name}</span>
       </button>
     `;
@@ -139,11 +139,16 @@ function renderActiveMap() {
   const titleEl = document.getElementById('active-map-title');
   const bannerImg = document.getElementById('map-banner-img');
   const bottomBarMap = document.getElementById('bottom-bar-map-name');
+  const mapIconThumb = document.getElementById('map-icon-thumb');
 
   if (titleEl) titleEl.textContent = currentMap.name;
   if (bottomBarMap) bottomBarMap.textContent = currentMap.name;
   if (bannerImg) {
-    bannerImg.style.backgroundImage = `url('${currentMap.bgImage}')`;
+    bannerImg.style.backgroundImage = `url('${currentMap.splash}')`;
+  }
+  if (mapIconThumb) {
+    mapIconThumb.src = currentMap.listViewIcon;
+    mapIconThumb.alt = currentMap.name;
   }
 
   // Renderiza as 3 Builds Sugeridas
@@ -161,11 +166,13 @@ function renderSuggestedBuilds(mapData) {
   grid.innerHTML = mapData.builds.map((build, index) => {
     const agentsListHtml = build.agents.map(agentName => {
       const role = getAgentRole(agentName);
-      const roleClass = `role-badge-${role.toLowerCase()}`;
+      const icon = getAgentIcon(agentName);
+      const color = getAgentColor(agentName);
       return `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${roleClass}">
-          ${agentName}
-        </span>
+        <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#0e1620] border border-[#233547] shadow-sm hover:border-[#ff4655]/40 transition">
+          <img src="${icon}" alt="${agentName}" class="w-5 h-5 rounded-full object-cover bg-black/60 border flex-shrink-0" style="border-color: ${color}">
+          <span class="text-[11px] font-semibold text-gray-100">${agentName}</span>
+        </div>
       `;
     }).join('');
 
@@ -226,13 +233,20 @@ function renderPlayersList() {
 
     const titularRole = titularAgent ? getAgentRole(titularAgent) : '';
     const reservaRole = reservaAgent ? getAgentRole(reservaAgent) : '';
+    const titularIcon = titularAgent ? getAgentIcon(titularAgent) : '';
+    const reservaIcon = reservaAgent ? getAgentIcon(reservaAgent) : '';
+    const titularColor = titularAgent ? getAgentColor(titularAgent) : '#ff4655';
+    const reservaColor = reservaAgent ? getAgentColor(reservaAgent) : '#00f5d4';
+
+    const titularRoleClass = titularRole ? `role-badge-${titularRole.toLowerCase()}` : '';
+    const reservaRoleClass = reservaRole ? `role-badge-${reservaRole.toLowerCase()}` : '';
 
     return `
       <div class="tactical-card p-3 sm:p-4 rounded-lg border border-[#203043] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         
         <!-- Identificador & Nome da Jogadora -->
         <div class="flex items-center gap-2.5 min-w-[200px]">
-          <div class="w-7 h-7 rounded bg-[#162332] border border-[#283b50] flex items-center justify-center font-tactical font-bold text-xs text-[#ff4655]">
+          <div class="w-8 h-8 rounded-lg bg-[#162332] border border-[#283b50] flex items-center justify-center font-tactical font-bold text-sm text-[#ff4655] shadow-inner">
             P${player.id}
           </div>
           <div class="flex-1">
@@ -244,7 +258,7 @@ function renderPlayersList() {
         </div>
 
         <!-- Seleção de Agentes (Titular e Reserva) -->
-        <div class="grid grid-cols-2 gap-2 flex-1 max-w-xl">
+        <div class="grid grid-cols-2 gap-2 sm:gap-3 flex-1 max-w-xl">
           
           <!-- Botão Agente Titular -->
           <div>
@@ -252,14 +266,24 @@ function renderPlayersList() {
               Agente Titular ⭐
             </label>
             <button onclick="window.openAgentModal(${index}, 'titular')" 
-                    class="w-full flex items-center justify-between p-2 rounded bg-[#0d141e] border ${titularAgent ? 'border-[#ff4655]/50 shadow-[0_0_8px_rgba(255,70,85,0.15)]' : 'border-[#223347]'} hover:border-[#ff4655] transition text-left">
-              <div class="flex items-center gap-2 truncate">
-                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${titularAgent ? getAgentColor(titularAgent) : '#4b5563'}"></span>
-                <span class="text-xs font-semibold ${titularAgent ? 'text-white' : 'text-gray-400'} truncate">
-                  ${titularAgent || 'Selecionar...'}
-                </span>
-              </div>
-              ${titularRole ? `<span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#1a2636] text-gray-300">${titularRole}</span>` : ''}
+                    class="w-full flex items-center justify-between p-2 rounded-lg bg-[#0d141e] border ${titularAgent ? 'border-[#ff4655]/50 shadow-[0_0_10px_rgba(255,70,85,0.18)]' : 'border-[#223347]'} hover:border-[#ff4655] transition text-left group">
+              ${titularAgent ? `
+                <div class="flex items-center gap-2.5 truncate">
+                  <img src="${titularIcon}" alt="${titularAgent}" class="w-9 h-9 rounded-lg object-cover bg-black/60 border-2 shadow-md flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${titularColor}">
+                  <div class="truncate">
+                    <div class="text-xs font-bold text-white truncate">${titularAgent}</div>
+                    <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${titularRoleClass}">${titularRole}</span>
+                  </div>
+                </div>
+              ` : `
+                <div class="flex items-center gap-2 text-gray-400 py-1">
+                  <div class="w-7 h-7 rounded-md border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28]">+</div>
+                  <span class="text-xs font-medium text-gray-400">Selecionar Titular...</span>
+                </div>
+              `}
+              <svg class="w-4 h-4 text-gray-500 group-hover:text-white transition flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
             </button>
           </div>
 
@@ -269,14 +293,24 @@ function renderPlayersList() {
               Agente Reserva 🔄
             </label>
             <button onclick="window.openAgentModal(${index}, 'reserva')" 
-                    class="w-full flex items-center justify-between p-2 rounded bg-[#0d141e] border ${reservaAgent ? 'border-[#00f5d4]/40 shadow-[0_0_8px_rgba(0,245,212,0.1)]' : 'border-[#223347]'} hover:border-[#00f5d4] transition text-left">
-              <div class="flex items-center gap-2 truncate">
-                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${reservaAgent ? getAgentColor(reservaAgent) : '#4b5563'}"></span>
-                <span class="text-xs font-semibold ${reservaAgent ? 'text-white' : 'text-gray-400'} truncate">
-                  ${reservaAgent || 'Selecionar...'}
-                </span>
-              </div>
-              ${reservaRole ? `<span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#1a2636] text-gray-300">${reservaRole}</span>` : ''}
+                    class="w-full flex items-center justify-between p-2 rounded-lg bg-[#0d141e] border ${reservaAgent ? 'border-[#00f5d4]/40 shadow-[0_0_10px_rgba(0,245,212,0.15)]' : 'border-[#223347]'} hover:border-[#00f5d4] transition text-left group">
+              ${reservaAgent ? `
+                <div class="flex items-center gap-2.5 truncate">
+                  <img src="${reservaIcon}" alt="${reservaAgent}" class="w-9 h-9 rounded-lg object-cover bg-black/60 border-2 shadow-md flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${reservaColor}">
+                  <div class="truncate">
+                    <div class="text-xs font-bold text-white truncate">${reservaAgent}</div>
+                    <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${reservaRoleClass}">${reservaRole}</span>
+                  </div>
+                </div>
+              ` : `
+                <div class="flex items-center gap-2 text-gray-400 py-1">
+                  <div class="w-7 h-7 rounded-md border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28]">+</div>
+                  <span class="text-xs font-medium text-gray-400">Selecionar Reserva...</span>
+                </div>
+              `}
+              <svg class="w-4 h-4 text-gray-500 group-hover:text-white transition flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
             </button>
           </div>
 
@@ -350,12 +384,12 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
 
     return `
       <button onclick="window.selectAgent('${agent.name}')" 
-              class="p-2.5 rounded-lg border text-left transition flex items-center justify-between gap-2 ${isSelected ? 'bg-[#ff4655]/20 border-[#ff4655] shadow-[0_0_10px_rgba(255,70,85,0.3)]' : 'bg-[#141e2b] border-[#223347] hover:border-[#ff4655] hover:bg-[#1b283a]'}">
-        <div class="flex items-center gap-2 truncate">
-          <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${agent.color}"></span>
-          <span class="text-xs font-bold text-white truncate">${agent.name}</span>
+              class="p-2 rounded-lg border text-left transition-all flex items-center gap-2.5 group ${isSelected ? 'bg-[#ff4655]/20 border-[#ff4655] shadow-[0_0_12px_rgba(255,70,85,0.35)] ring-1 ring-[#ff4655]' : 'bg-[#141e2b] border-[#223347] hover:border-[#ff4655] hover:bg-[#1c2a3d]'}">
+        <img src="${agent.icon}" alt="${agent.name}" class="w-10 h-10 rounded-lg object-cover bg-black/50 border-2 flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${agent.color}" loading="lazy">
+        <div class="truncate flex-1">
+          <span class="text-xs font-bold text-white block truncate leading-tight">${agent.name}</span>
+          <span class="text-[9px] font-mono uppercase px-1 py-0.2 rounded inline-block mt-0.5 ${roleClass}">${agent.role}</span>
         </div>
-        <span class="text-[9px] font-mono px-1 py-0.5 rounded ${roleClass}">${agent.role.slice(0, 4)}</span>
       </button>
     `;
   }).join('');
