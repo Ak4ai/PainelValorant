@@ -503,7 +503,7 @@ const DEFAULT_PLAYERS = [
 
 // Banco padrão de jogadoras cadastradas para Autocomplete rápido
 const DEFAULT_ROSTER = [
-  { name: 'c0rt3z#0303', kd: '1.18', mostPlayed: ['Jett', 'Reyna', 'Omen'], role: 'Duelista' },
+  { name: 'c0rt3z#0303', kd: '1.01', mostPlayed: ['Killjoy', 'Cypher', 'Omen'], role: 'Sentinela' },
   { name: 'Julia#BR1', kd: '1.25', mostPlayed: ['Sova', 'Fade', 'Gekko'], role: 'Iniciadora' },
   { name: 'Bruna#BR1', kd: '1.10', mostPlayed: ['Omen', 'Astra', 'Viper'], role: 'Controladora' },
   { name: 'Mari#BR1', kd: '1.05', mostPlayed: ['Killjoy', 'Cypher', 'Deadlock'], role: 'Sentinela' },

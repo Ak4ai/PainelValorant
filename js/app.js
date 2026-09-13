@@ -881,6 +881,12 @@ window.selectRosterPlayer = function(playerIndex, playerName) {
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
   renderPlayersList();
   showToast(`Jogadora "${playerName}" carregada com sucesso!`, 'success');
+
+  // Se tiver Riot ID (#TAG) e chave HenrikDev, atualiza os dados ao vivo em segundo plano
+  const henrikKey = getHenrikApiKey();
+  if (henrikKey && playerName.includes('#')) {
+    autoFetchPlayerStatsInBackground(playerIndex, playerName);
+  }
 };
 
 // Salva input digitado no banco
@@ -915,7 +921,7 @@ window.updatePlayerName = function(playerIndex, newName) {
   const finalName = newName.trim() || defaultName;
   currentPlayers[playerIndex].name = finalName;
 
-  // Se o nick digitado coincidir com alguém do Banco de Jogadoras, carrega K/D e agentes automaticamente
+  // Se o nick digitado coincidir com alguém do Banco de Jogadoras, carrega K/D e agentes imediatamente
   const inRoster = (state.roster || []).find(r => r.name.toLowerCase() === finalName.toLowerCase());
   if (inRoster) {
     if (inRoster.kd && !currentPlayers[playerIndex].kd) {
@@ -932,17 +938,17 @@ window.updatePlayerName = function(playerIndex, newName) {
       mostPlayed: Array.isArray(currentPlayers[playerIndex].mostPlayed) ? [...currentPlayers[playerIndex].mostPlayed] : [],
       role: 'Flex'
     });
-
-    // Se tiver chave configurada para a API HenrikDev, busca em segundo plano
-    const henrikKey = getHenrikApiKey();
-    if (henrikKey) {
-      autoFetchPlayerStatsInBackground(playerIndex, finalName);
-    }
   }
 
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
   renderPlayersList();
+
+  // Se for um Riot ID (Nick#TAG) válido e tiver chave HenrikDev configurada, busca dados ao vivo
+  const henrikKey = getHenrikApiKey();
+  if (henrikKey && finalName.includes('#') && !finalName.startsWith('Player ') && !finalName.startsWith('Reserva ')) {
+    autoFetchPlayerStatsInBackground(playerIndex, finalName);
+  }
 };
 
 // Atualiza o K/D da jogadora
@@ -1018,6 +1024,7 @@ async function autoFetchPlayerStatsInBackground(playerIndex, riotId) {
 
     const accData = await accRes.json();
     const region = accData.data?.region || 'br';
+    const puuid = accData.data?.puuid;
 
     const matchRes = await fetch(`https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?size=10`, {
       headers: { 'Authorization': apiKey }
@@ -1030,7 +1037,8 @@ async function autoFetchPlayerStatsInBackground(playerIndex, riotId) {
       const counts = {};
       matchData.data.forEach(m => {
         const p = m.players?.all_players?.find(pl => 
-          pl.name.toLowerCase() === name.toLowerCase() && pl.tag.toLowerCase() === tag.toLowerCase()
+          (puuid && pl.puuid === puuid) ||
+          (pl.name?.toLowerCase() === name.toLowerCase() && pl.tag?.toLowerCase() === tag.toLowerCase())
         );
         if (p) {
           kills += p.stats?.kills || 0;
@@ -1054,7 +1062,9 @@ async function autoFetchPlayerStatsInBackground(playerIndex, riotId) {
         saveCurrentState();
         syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
         renderPlayersList();
-        showToast(`Estatísticas do Tracker para ${riotId} sincronizadas!`, 'success');
+        
+        const topStr = topAgents.length > 0 ? ` (${topAgents.join(', ')})` : '';
+        showToast(`⚡ Tracker sincronizado para ${riotId}: K/D ${currentPlayers[playerIndex].kd}${topStr}`, 'success');
       }
     }
   } catch (err) {
@@ -1434,6 +1444,8 @@ window.fetchTrackerAuto = async function() {
 
     const accData = await accRes.json();
     const region = accData.data?.region || 'br';
+    const puuid = accData.data?.puuid;
+    const accLevel = accData.data?.account_level;
 
     const matchRes = await fetch(`https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?size=10`, {
       headers: { 'Authorization': apiKey }
@@ -1441,23 +1453,24 @@ window.fetchTrackerAuto = async function() {
 
     let calculatedKd = '';
     let topAgents = [];
+    let totalKills = 0, totalDeaths = 0;
 
     if (matchRes.ok) {
       const matchData = await matchRes.json();
       if (matchData.data && Array.isArray(matchData.data)) {
-        let kills = 0, deaths = 0;
         const counts = {};
         matchData.data.forEach(m => {
           const p = m.players?.all_players?.find(pl => 
-            pl.name.toLowerCase() === name.toLowerCase() && pl.tag.toLowerCase() === tag.toLowerCase()
+            (puuid && pl.puuid === puuid) ||
+            (pl.name?.toLowerCase() === name.toLowerCase() && pl.tag?.toLowerCase() === tag.toLowerCase())
           );
           if (p) {
-            kills += p.stats?.kills || 0;
-            deaths += p.stats?.deaths || 0;
+            totalKills += p.stats?.kills || 0;
+            totalDeaths += p.stats?.deaths || 0;
             if (p.character) counts[p.character] = (counts[p.character] || 0) + 1;
           }
         });
-        if (deaths > 0) calculatedKd = (kills / deaths).toFixed(2);
+        if (totalDeaths > 0) calculatedKd = (totalKills / totalDeaths).toFixed(2);
         topAgents = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
       }
     }
@@ -1472,7 +1485,14 @@ window.fetchTrackerAuto = async function() {
       renderTrackerModalTopAgents();
     }
 
-    showTrackerStatus(`✅ Sucesso! Dados encontrados: K/D ${calculatedKd || 'obtido'} e ${topAgents.length} agentes carregados.`, 'success');
+    const details = [
+      `Região: ${region.toUpperCase()}`,
+      accLevel ? `Nível ${accLevel}` : '',
+      calculatedKd ? `K/D: ${calculatedKd} (${totalKills}K / ${totalDeaths}D)` : '',
+      topAgents.length > 0 ? `Mais jogados: ${topAgents.join(', ')}` : ''
+    ].filter(Boolean).join(' • ');
+
+    showTrackerStatus(`✅ Conectado com sucesso à Riot Games!<br><span class="text-white font-medium">${details}</span>`, 'success');
   } catch (err) {
     showTrackerStatus(`Erro ao buscar: ${err.message}`, 'error');
   }

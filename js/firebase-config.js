@@ -4,9 +4,10 @@ const STORAGE_KEY_CONFIG = 'valorant_lineup_firebase_config';
 const STORAGE_KEY_DATA = 'valorant_lineup_local_data';
 const STORAGE_KEY_TEAM = 'valorant_lineup_team_name';
 const STORAGE_KEY_HENRIK = 'valorant_lineup_henrik_api_key';
+const DEFAULT_HENRIK_API_KEY = 'HDEV-1b41f6d2-1919-49b8-8d1f-8efc8793e375';
 
 function getHenrikApiKey() {
-  return localStorage.getItem(STORAGE_KEY_HENRIK) || '';
+  return localStorage.getItem(STORAGE_KEY_HENRIK) || DEFAULT_HENRIK_API_KEY;
 }
 
 function saveHenrikApiKey(key) {
