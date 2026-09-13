@@ -35,10 +35,24 @@ function initializeDefaultLineups() {
     }
   }
 
-  // Garante que cada mapa tenha 5 jogadoras inicializadas
+  // Garante que cada mapa tenha 7 jogadoras (5 Titulares + 2 Reservas Flex)
   MAPS_DATA.forEach(map => {
-    if (!state.lineups[map.id] || !Array.isArray(state.lineups[map.id]) || state.lineups[map.id].length !== 5) {
-      state.lineups[map.id] = DEFAULT_PLAYERS.map(p => ({ ...p }));
+    if (!state.lineups[map.id] || !Array.isArray(state.lineups[map.id])) {
+      state.lineups[map.id] = DEFAULT_PLAYERS.map(p => ({ ...p, mostPlayed: [...(p.mostPlayed || [])] }));
+    } else {
+      while (state.lineups[map.id].length < 7) {
+        const subId = state.lineups[map.id].length + 1;
+        state.lineups[map.id].push({
+          id: subId,
+          name: `Reserva ${subId - 5}`,
+          isSub: true,
+          flex1: '',
+          flex2: '',
+          flex3: '',
+          kd: '',
+          mostPlayed: []
+        });
+      }
     }
   });
 }
@@ -62,6 +76,19 @@ document.addEventListener('DOMContentLoaded', () => {
       MAPS_DATA.forEach(m => {
         if (incomingLineups[m.id]) {
           state.lineups[m.id] = incomingLineups[m.id];
+          while (state.lineups[m.id].length < 7) {
+            const subId = state.lineups[m.id].length + 1;
+            state.lineups[m.id].push({
+              id: subId,
+              name: `Reserva ${subId - 5}`,
+              isSub: true,
+              flex1: '',
+              flex2: '',
+              flex3: '',
+              kd: '',
+              mostPlayed: []
+            });
+          }
           changed = true;
         }
       });
@@ -305,25 +332,35 @@ window.applyBuildToTeam = function(buildIndex) {
   showToast(`Comp "${chosenBuild.title}" aplicada com sucesso!`, 'success');
 };
 
-// Reseta a build (titulares e reservas) dos 5 jogadores no mapa atual
+// Reseta a build (titulares e reservas) dos 7 jogadores no mapa atual
 window.resetCurrentMapBuild = function() {
   const currentMap = MAPS_DATA.find(m => m.id === state.activeMapId) || { name: state.activeMapId };
   const currentPlayers = state.lineups[state.activeMapId];
 
   if (!currentPlayers || !Array.isArray(currentPlayers)) return;
 
-  const hasPicks = currentPlayers.some(p => (p.titular && p.titular.trim() !== '') || (p.reserva && p.reserva.trim() !== ''));
+  const hasPicks = currentPlayers.some(p => 
+    (p.titular && p.titular.trim() !== '') || 
+    (p.reserva && p.reserva.trim() !== '') ||
+    (p.flex1 && p.flex1.trim() !== '') ||
+    (p.flex2 && p.flex2.trim() !== '') ||
+    (p.flex3 && p.flex3.trim() !== '')
+  );
+
   if (!hasPicks) {
     showToast(`O mapa ${currentMap.name} já está sem agentes definidos.`, 'info');
     return;
   }
 
-  const confirmed = window.confirm(`Deseja limpar todos os agentes (Titulares e Reservas) escalados no mapa ${currentMap.name}?\n\nOs nomes das jogadoras serão mantidos.`);
+  const confirmed = window.confirm(`Deseja limpar todos os agentes (Titulares, Reservas e Flex) escalados no mapa ${currentMap.name}?\n\nOs nomes das jogadoras, K/D e mais jogados serão mantidos.`);
   if (!confirmed) return;
 
   currentPlayers.forEach(p => {
     p.titular = '';
     p.reserva = '';
+    if (p.flex1 !== undefined) p.flex1 = '';
+    if (p.flex2 !== undefined) p.flex2 = '';
+    if (p.flex3 !== undefined) p.flex3 = '';
   });
 
   saveCurrentState();
@@ -331,14 +368,18 @@ window.resetCurrentMapBuild = function() {
   showToast(`Build de ${currentMap.name} resetada com sucesso!`, 'info');
 };
 
-// Renderiza a lista dos 5 Jogadores no Mapa
+// Renderiza a lista das 5 Jogadoras Titulares e 2 Reservas Flex
 function renderPlayersList() {
-  const container = document.getElementById('players-list-container');
-  if (!container) return;
+  const containerTitulares = document.getElementById('players-list-container');
+  const containerReserves = document.getElementById('reserves-list-container');
+  if (!containerTitulares) return;
 
   const players = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
+  const titulares = players.slice(0, 5);
+  const reserves = players.slice(5, 7);
 
-  container.innerHTML = players.map((player, index) => {
+  // Renderiza os 5 Titulares
+  containerTitulares.innerHTML = titulares.map((player, index) => {
     const titularAgent = player.titular;
     const reservaAgent = player.reserva;
 
@@ -352,19 +393,83 @@ function renderPlayersList() {
     const titularRoleClass = titularRole ? `role-badge-${titularRole.toLowerCase()}` : '';
     const reservaRoleClass = reservaRole ? `role-badge-${reservaRole.toLowerCase()}` : '';
 
+    const hasTag = player.name && player.name.includes('#');
+    let trackerLinkHtml = '';
+    if (hasTag) {
+      const parts = player.name.split('#');
+      const riotName = encodeURIComponent(parts[0].trim());
+      const riotTag = encodeURIComponent(parts[1].trim());
+      const trackerUrl = `https://tracker.gg/valorant/profile/riot/${riotName}%23${riotTag}/overview`;
+      trackerLinkHtml = `
+        <a href="${trackerUrl}" target="_blank" rel="noopener noreferrer" 
+           title="Ver perfil completo no Tracker.gg"
+           class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-300 bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          <span>Tracker ↗</span>
+        </a>
+      `;
+    } else {
+      trackerLinkHtml = `
+        <button onclick="window.promptPlayerTag(${index})" 
+                title="Adicionar #TAG para abrir no Tracker.gg"
+                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-gray-400 hover:text-sky-300 bg-[#121922] hover:bg-sky-950/40 border border-[#223347] transition">
+          <span>+TAG Tracker</span>
+        </button>
+      `;
+    }
+
+    const mostPlayedList = Array.isArray(player.mostPlayed) ? player.mostPlayed : [];
+    const mostPlayedIconsHtml = mostPlayedList.map((agentName, mIdx) => {
+      const icon = getAgentIcon(agentName);
+      const color = getAgentColor(agentName);
+      return `
+        <button onclick="window.openAgentModal(${index}, 'top${mIdx + 1}')" 
+                title="Mais jogada: ${agentName} (clique para trocar)" 
+                class="relative hover:scale-110 transition-transform">
+          <img src="${icon}" alt="${agentName}" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover bg-black border flex-shrink-0" style="border-color: ${color}">
+        </button>
+      `;
+    }).join('');
+
+    const addMostPlayedBtn = mostPlayedList.length < 3 ? `
+      <button onclick="window.openAgentModal(${index}, 'top${mostPlayedList.length + 1}')" 
+              title="Adicionar agente mais jogado do Tracker"
+              class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-dashed border-gray-600 hover:border-[#ff4655] text-gray-400 hover:text-white flex items-center justify-center text-[10px] bg-[#121922] transition">
+        +
+      </button>
+    ` : '';
+
     return `
       <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-[#203043] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
         
-        <!-- Identificador & Nome da Jogadora -->
-        <div class="flex items-center gap-2 w-full md:w-56 flex-shrink-0 min-w-0">
-          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#162332] border border-[#283b50] flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-[#ff4655] shadow-inner flex-shrink-0">
-            P${player.id}
+        <!-- Identificador, Nome & Stats Tracker -->
+        <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#162332] border border-[#283b50] flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-[#ff4655] shadow-inner flex-shrink-0">
+              P${player.id}
+            </div>
+            <div class="flex-1 min-w-0">
+              <input type="text" value="${escapeHtml(player.name || `Player ${player.id}`)}" 
+                     onchange="window.updatePlayerName(${index}, this.value)"
+                     placeholder="Nick#TAG (ex: Julia#BR1)"
+                     class="w-full bg-[#0d141e] border border-[#223347] focus:border-[#ff4655] rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
+            </div>
           </div>
-          <div class="flex-1 min-w-0">
-            <input type="text" value="${escapeHtml(player.name || `Player ${player.id}`)}" 
-                   onchange="window.updatePlayerName(${index}, this.value)"
-                   placeholder="Nome da Jogadora"
-                   class="w-full bg-[#0d141e] border border-[#223347] focus:border-[#ff4655] rounded px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-white focus:outline-none transition truncate">
+
+          <!-- Stats Tracker: Link, K/D e Mais Jogadas -->
+          <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
+            ${trackerLinkHtml}
+            <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
+              <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
+              <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
+                     onchange="window.updatePlayerKd(${index}, this.value)" 
+                     class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
+            </div>
+            <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker / Conforto)">
+              <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
+              ${mostPlayedIconsHtml}
+              ${addMostPlayedBtn}
+            </div>
           </div>
         </div>
 
@@ -430,6 +535,137 @@ function renderPlayersList() {
       </div>
     `;
   }).join('');
+
+  // Renderiza as 2 Reservas com Bonecos Flex
+  if (containerReserves) {
+    containerReserves.innerHTML = reserves.map((player, rIdx) => {
+      const actualIndex = rIdx + 5;
+      const hasTag = player.name && player.name.includes('#');
+      let trackerLinkHtml = '';
+      if (hasTag) {
+        const parts = player.name.split('#');
+        const riotName = encodeURIComponent(parts[0].trim());
+        const riotTag = encodeURIComponent(parts[1].trim());
+        const trackerUrl = `https://tracker.gg/valorant/profile/riot/${riotName}%23${riotTag}/overview`;
+        trackerLinkHtml = `
+          <a href="${trackerUrl}" target="_blank" rel="noopener noreferrer" 
+             title="Ver perfil completo no Tracker.gg"
+             class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-300 bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
+            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            <span>Tracker ↗</span>
+          </a>
+        `;
+      } else {
+        trackerLinkHtml = `
+          <button onclick="window.promptPlayerTag(${actualIndex})" 
+                  title="Adicionar #TAG para abrir no Tracker.gg"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-gray-400 hover:text-sky-300 bg-[#121922] hover:bg-sky-950/40 border border-[#223347] transition">
+            <span>+TAG Tracker</span>
+          </button>
+        `;
+      }
+
+      const mostPlayedList = Array.isArray(player.mostPlayed) ? player.mostPlayed : [];
+      const mostPlayedIconsHtml = mostPlayedList.map((agentName, mIdx) => {
+        const icon = getAgentIcon(agentName);
+        const color = getAgentColor(agentName);
+        return `
+          <button onclick="window.openAgentModal(${actualIndex}, 'top${mIdx + 1}')" 
+                  title="Mais jogada: ${agentName} (clique para trocar)" 
+                  class="relative hover:scale-110 transition-transform">
+            <img src="${icon}" alt="${agentName}" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover bg-black border flex-shrink-0" style="border-color: ${color}">
+          </button>
+        `;
+      }).join('');
+
+      const addMostPlayedBtn = mostPlayedList.length < 3 ? `
+        <button onclick="window.openAgentModal(${actualIndex}, 'top${mostPlayedList.length + 1}')" 
+                title="Adicionar agente mais jogado do Tracker"
+                class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-dashed border-gray-600 hover:border-amber-400 text-gray-400 hover:text-white flex items-center justify-center text-[10px] bg-[#121922] transition">
+          +
+        </button>
+      ` : '';
+
+      const flexSlots = ['flex1', 'flex2', 'flex3'].map((slotKey, sIdx) => {
+        const agentName = player[slotKey] || '';
+        const role = agentName ? getAgentRole(agentName) : '';
+        const icon = agentName ? getAgentIcon(agentName) : '';
+        const color = agentName ? getAgentColor(agentName) : '#f59e0b';
+        const roleClass = role ? `role-badge-${role.toLowerCase()}` : '';
+        const slotLabels = ['Flex 1 ⚡', 'Flex 2 🛡️', 'Flex 3 🎯'];
+
+        return `
+          <div class="min-w-0">
+            <label class="text-[9px] uppercase font-tactical tracking-wider text-amber-400/90 block mb-0.5 truncate">
+              ${slotLabels[sIdx]}
+            </label>
+            <button onclick="window.openAgentModal(${actualIndex}, '${slotKey}')" 
+                    class="w-full min-w-0 flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-[#0d141e] border ${agentName ? 'border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.2)]' : 'border-[#223347]'} hover:border-amber-400 transition text-left group">
+              ${agentName ? `
+                <div class="flex items-center gap-1.5 truncate min-w-0 flex-1">
+                  <img src="${icon}" alt="${agentName}" class="w-6 h-6 sm:w-7 sm:h-7 rounded object-cover bg-black/60 border shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${color}">
+                  <div class="truncate min-w-0 flex-1">
+                    <div class="text-[11px] sm:text-xs font-bold text-white truncate leading-tight">${agentName}</div>
+                    <span class="text-[8px] sm:text-[9px] font-mono uppercase px-1 py-0.2 rounded ${roleClass} inline-block truncate max-w-full leading-none mt-0.5">${role}</span>
+                  </div>
+                </div>
+              ` : `
+                <div class="flex items-center gap-1.5 text-gray-400 py-0.5 truncate min-w-0">
+                  <div class="w-5 h-5 rounded border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28] flex-shrink-0">+</div>
+                  <span class="text-[10px] font-medium text-gray-400 truncate">Flex ${sIdx + 1}...</span>
+                </div>
+              `}
+              <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition flex-shrink-0 ml-1 hidden xs:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-amber-900/40 hover:border-amber-500/50 bg-[#101722] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
+          
+          <!-- Identificador R1/R2, Nome & Stats Tracker -->
+          <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-950/70 border border-amber-500/50 flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-amber-300 shadow-inner flex-shrink-0">
+                R${rIdx + 1}
+              </div>
+              <div class="flex-1 min-w-0">
+                <input type="text" value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
+                       onchange="window.updatePlayerName(${actualIndex}, this.value)"
+                       placeholder="Nick#TAG (ex: Bruna#BR1)"
+                       class="w-full bg-[#0d141e] border border-[#223347] focus:border-amber-400 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
+              </div>
+            </div>
+
+            <!-- Stats Tracker: Link, K/D e Mais Jogadas -->
+            <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
+              ${trackerLinkHtml}
+              <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
+                <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
+                <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
+                       onchange="window.updatePlayerKd(${actualIndex}, this.value)" 
+                       class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
+              </div>
+              <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker)">
+                <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
+                ${mostPlayedIconsHtml}
+                ${addMostPlayedBtn}
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 Slots de Bonecos Flex -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full flex-1 min-w-0">
+            ${flexSlots}
+          </div>
+
+        </div>
+      `;
+    }).join('');
+  }
 }
 
 // Atualiza o nome da jogadora
@@ -437,9 +673,41 @@ window.updatePlayerName = function(playerIndex, newName) {
   const currentPlayers = state.lineups[state.activeMapId];
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
 
-  currentPlayers[playerIndex].name = newName.trim() || `Player ${playerIndex + 1}`;
+  const defaultName = playerIndex < 5 ? `Player ${playerIndex + 1}` : `Reserva ${playerIndex - 4}`;
+  currentPlayers[playerIndex].name = newName.trim() || defaultName;
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+  renderPlayersList();
+};
+
+// Atualiza o K/D da jogadora
+window.updatePlayerKd = function(playerIndex, newKd) {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  currentPlayers[playerIndex].kd = (newKd || '').trim();
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+};
+
+// Prompt rápido para adicionar #TAG no nick
+window.promptPlayerTag = function(playerIndex) {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  const player = currentPlayers[playerIndex];
+  const defaultBase = playerIndex < 5 ? `Player ${playerIndex + 1}` : `Reserva ${playerIndex - 4}`;
+  const currentName = player.name || defaultBase;
+  const baseName = currentName.includes('#') ? currentName.split('#')[0].trim() : currentName.trim();
+  const input = window.prompt(`Digite o Riot ID completo com a TAG (ex: ${baseName}#BR1):`, currentName.includes('#') ? currentName : `${baseName}#BR1`);
+  
+  if (input && input.trim()) {
+    player.name = input.trim();
+    saveCurrentState();
+    syncSavePlayer(state.activeMapId, playerIndex, player, state.lineups);
+    renderPlayersList();
+    showToast(`Riot ID atualizado: ${player.name}`, 'success');
+  }
 };
 
 // Abre Modal de Escolha de Agente
@@ -456,7 +724,13 @@ window.openAgentModal = function(playerIndex, slotType) {
   const playerName = player ? player.name : `Player ${playerIndex + 1}`;
 
   if (modalSub) modalSub.textContent = `Player: ${playerName}`;
-  if (modalTitle) modalTitle.textContent = slotType === 'titular' ? 'ESCOLHER AGENTE TITULAR' : 'ESCOLHER AGENTE RESERVA';
+  if (modalTitle) {
+    if (slotType === 'titular') modalTitle.textContent = 'ESCOLHER AGENTE TITULAR';
+    else if (slotType === 'reserva') modalTitle.textContent = 'ESCOLHER AGENTE RESERVA';
+    else if (slotType.startsWith('flex')) modalTitle.textContent = `ESCOLHER AGENTE FLEX (${slotType.toUpperCase()})`;
+    else if (slotType.startsWith('top')) modalTitle.textContent = 'ESCOLHER AGENTE MAIS JOGADO (TRACKER)';
+    else modalTitle.textContent = 'ESCOLHER AGENTE';
+  }
   if (searchInput) searchInput.value = '';
 
   renderAgentsGrid('all', '');
@@ -476,7 +750,16 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
   const grid = document.getElementById('agents-grid');
   if (!grid) return;
 
-  const currentSelection = state.lineups[state.activeMapId]?.[state.activeModal.playerIndex]?.[state.activeModal.agentSlot] || '';
+  let currentSelection = '';
+  const player = state.lineups[state.activeMapId]?.[state.activeModal.playerIndex];
+  if (player && state.activeModal.agentSlot) {
+    if (state.activeModal.agentSlot.startsWith('top')) {
+      const idx = parseInt(state.activeModal.agentSlot.replace('top', '')) - 1;
+      currentSelection = player.mostPlayed?.[idx] || '';
+    } else {
+      currentSelection = player[state.activeModal.agentSlot] || '';
+    }
+  }
 
   const filtered = ALL_AGENTS.filter(agent => {
     const matchesRole = roleFilter === 'all' || agent.role === roleFilter;
@@ -514,13 +797,22 @@ window.selectAgent = function(agentName) {
   const currentPlayers = state.lineups[state.activeMapId];
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
 
-  currentPlayers[playerIndex][agentSlot] = agentName;
+  if (agentSlot.startsWith('top')) {
+    if (!Array.isArray(currentPlayers[playerIndex].mostPlayed)) {
+      currentPlayers[playerIndex].mostPlayed = [];
+    }
+    const idx = parseInt(agentSlot.replace('top', '')) - 1;
+    currentPlayers[playerIndex].mostPlayed[idx] = agentName;
+  } else {
+    currentPlayers[playerIndex][agentSlot] = agentName;
+  }
+
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
 
   renderPlayersList();
   closeAgentModal();
-  showToast(`${agentName} definido como ${agentSlot}!`, 'success');
+  showToast(`${agentName} selecionado com sucesso!`, 'success');
 };
 
 // Limpa seleção do agente atual
@@ -531,13 +823,21 @@ window.clearSelectedAgent = function() {
   const currentPlayers = state.lineups[state.activeMapId];
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
 
-  currentPlayers[playerIndex][agentSlot] = '';
+  if (agentSlot.startsWith('top')) {
+    if (Array.isArray(currentPlayers[playerIndex].mostPlayed)) {
+      const idx = parseInt(agentSlot.replace('top', '')) - 1;
+      currentPlayers[playerIndex].mostPlayed.splice(idx, 1);
+    }
+  } else {
+    currentPlayers[playerIndex][agentSlot] = '';
+  }
+
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
 
   renderPlayersList();
   closeAgentModal();
-  showToast('Agente removido', 'info');
+  showToast('Seleção removida', 'info');
 };
 
 // Configura busca e filtros de função de agentes no modal
@@ -630,11 +930,27 @@ function generateWhatsappMapText(mapId) {
   text += `📍 *Mapa:* ${mapData.name.toUpperCase()} ${mapData.isMeta ? '(Pool Ativo)' : '(Fora do Meta)'}\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  players.forEach((p, idx) => {
+  // 5 Titulares
+  text += `⭐ *TITULARES:*\n`;
+  players.slice(0, 5).forEach((p, idx) => {
     const titular = p.titular || 'Não definido';
     const reserva = p.reserva ? `(Res: ${p.reserva})` : '';
-    text += `${idx + 1}️⃣ *${p.name || `Player ${idx + 1}`}:* ${titular} ${reserva}\n`;
+    const kd = p.kd ? ` [K/D: ${p.kd}]` : '';
+    text += `${idx + 1}️⃣ *${p.name || `Player ${idx + 1}`}*${kd}: ${titular} ${reserva}\n`;
   });
+
+  // 2 Reservas
+  const reserves = players.slice(5, 7);
+  if (reserves.length > 0) {
+    text += `\n👥 *RESERVAS & FLEX:*\n`;
+    reserves.forEach((p, idx) => {
+      const kd = p.kd ? ` [K/D: ${p.kd}]` : '';
+      const flexPicks = [p.flex1, p.flex2, p.flex3].filter(Boolean);
+      const flexStr = flexPicks.length > 0 ? flexPicks.join(', ') : 'Nenhum definido';
+      text += `R${idx + 1}️⃣ *${p.name || `Reserva ${idx + 1}`}*${kd}:\n`;
+      text += `   ↳ _Flex:_ ${flexStr}\n`;
+    });
+  }
 
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `⚡ _Painel Tático Atualizado_`;
@@ -651,11 +967,20 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
   metaMaps.forEach(map => {
     text += `📍 *MAPA: ${map.name.toUpperCase()}*\n`;
     const players = state.lineups[map.id] || DEFAULT_PLAYERS;
-    players.forEach((p, idx) => {
+    players.slice(0, 5).forEach((p, idx) => {
       const titular = p.titular || '-';
       const reserva = p.reserva ? `[Res: ${p.reserva}]` : '';
-      text += `• *${p.name || `P${idx + 1}`}:* ${titular} ${reserva}\n`;
+      const kd = p.kd ? ` (${p.kd})` : '';
+      text += `• *${p.name || `P${idx + 1}`}*${kd}: ${titular} ${reserva}\n`;
     });
+    const reserves = players.slice(5, 7);
+    if (reserves.length > 0) {
+      const flexList = reserves.map((r, rIdx) => {
+        const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
+        return `${r.name || `R${rIdx + 1}`}${f ? ` [Flex: ${f}]` : ''}`;
+      }).join(' | ');
+      text += `  ↳ _Suplentes:_ ${flexList}\n`;
+    }
     text += `\n`;
   });
 
@@ -665,11 +990,20 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
     benchMaps.forEach(map => {
       text += `📍 *MAPA: ${map.name.toUpperCase()}*\n`;
       const players = state.lineups[map.id] || DEFAULT_PLAYERS;
-      players.forEach((p, idx) => {
+      players.slice(0, 5).forEach((p, idx) => {
         const titular = p.titular || '-';
         const reserva = p.reserva ? `[Res: ${p.reserva}]` : '';
-        text += `• *${p.name || `P${idx + 1}`}:* ${titular} ${reserva}\n`;
+        const kd = p.kd ? ` (${p.kd})` : '';
+        text += `• *${p.name || `P${idx + 1}`}*${kd}: ${titular} ${reserva}\n`;
       });
+      const reserves = players.slice(5, 7);
+      if (reserves.length > 0) {
+        const flexList = reserves.map((r, rIdx) => {
+          const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
+          return `${r.name || `R${rIdx + 1}`}${f ? ` [Flex: ${f}]` : ''}`;
+        }).join(' | ');
+        text += `  ↳ _Suplentes:_ ${flexList}\n`;
+      }
       text += `\n`;
     });
   }
