@@ -1,4 +1,5 @@
 // Banco de Agentes de Valorant com URLs oficiais da Riot CDN
+(() => {
 const AGENTS = {
   Duelistas: [
     { 
@@ -375,3 +376,4 @@ window.ValorantData = {
   getAgentRole,
   getAgentIcon
 };
+})();

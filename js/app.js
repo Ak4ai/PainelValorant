@@ -1,3 +1,4 @@
+(() => {
 const { MAPS_DATA, AGENTS, ALL_AGENTS, DEFAULT_PLAYERS, getAgentColor, getAgentRole, getAgentIcon } = window.ValorantData || {};
 const { 
   initRealtimeSync, 
@@ -700,3 +701,4 @@ function escapeHtml(string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+})();

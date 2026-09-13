@@ -1,5 +1,5 @@
 // Gerenciador de Sincronização em Tempo Real (Firebase Realtime Database + LocalStorage Fallback)
-
+(() => {
 const STORAGE_KEY_CONFIG = 'valorant_lineup_firebase_config';
 const STORAGE_KEY_DATA = 'valorant_lineup_local_data';
 const STORAGE_KEY_TEAM = 'valorant_lineup_team_name';
@@ -225,3 +225,4 @@ window.ValorantSync = {
   getSavedTeamName,
   saveTeamName
 };
+})();
