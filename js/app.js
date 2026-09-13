@@ -497,7 +497,9 @@ function renderPlayersList() {
     ` : '';
 
     return `
-      <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-[#203043] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
+      <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-[#203043] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0"
+           id="player-card-${index}"
+           style="position: relative; z-index: ${30 - index};">
         
         <!-- Identificador, Nome & Autocomplete & Stats Tracker -->
         <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
@@ -518,7 +520,7 @@ function renderPlayersList() {
               
               <!-- Dropdown de Autocomplete -->
               <div id="roster-autocomplete-dropdown-${index}" 
-                   class="absolute left-0 top-full mt-1 z-50 w-64 sm:w-72 bg-[#0e1622] border border-[#26374a] rounded-lg shadow-2xl overflow-hidden hidden max-h-56 overflow-y-auto">
+                   class="absolute left-0 top-full mt-1.5 z-50 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[#0d141e] border border-[#2a3e55] rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.95)] ring-1 ring-sky-500/40 overflow-hidden hidden animate-fade-in">
               </div>
             </div>
           </div>
@@ -697,7 +699,9 @@ function renderPlayersList() {
       }).join('');
 
       return `
-        <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-amber-900/40 hover:border-amber-500/50 bg-[#101722] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
+        <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-amber-900/40 hover:border-amber-500/50 bg-[#101722] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0"
+             id="player-card-${actualIndex}"
+             style="position: relative; z-index: ${20 - rIdx};">
           
           <!-- Identificador R1/R2, Nome & Autocomplete & Stats Tracker -->
           <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
@@ -718,7 +722,7 @@ function renderPlayersList() {
                 
                 <!-- Dropdown de Autocomplete -->
                 <div id="roster-autocomplete-dropdown-${actualIndex}" 
-                     class="absolute left-0 top-full mt-1 z-50 w-64 sm:w-72 bg-[#0e1622] border border-[#26374a] rounded-lg shadow-2xl overflow-hidden hidden max-h-56 overflow-y-auto">
+                     class="absolute left-0 top-full mt-1.5 z-50 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[#0d141e] border border-[#2a3e55] rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.95)] ring-1 ring-amber-500/40 overflow-hidden hidden animate-fade-in">
                 </div>
               </div>
             </div>
@@ -758,57 +762,214 @@ function renderPlayersList() {
 }
 
 // --------------------------------------------------------------------------
-// SISTEMA DE AUTOCOMPLETE & BANCO DE JOGADORAS (ROSTER)
+// SISTEMA DE AUTOCOMPLETE & BANCO DE JOGADORAS (ROSTER) + RIOT GAMES API
 // --------------------------------------------------------------------------
 
-// Mostra o dropdown de autocomplete
-window.showRosterAutocomplete = function(playerIndex) {
+// Cache de consultas para evitar chamadas duplicadas à API HenrikDev / Riot
+const apiAccountCache = new Map();
+let apiSearchDebounceTimer = null;
+let currentSearchingNick = '';
+let isApiSearching = false;
+
+// Oculta todos os dropdowns de autocomplete e restaura os z-indexes dos cards
+window.hideAllRosterAutocompletes = function() {
   document.querySelectorAll('[id^="roster-autocomplete-dropdown-"]').forEach(el => {
     el.classList.add('hidden');
   });
+  document.querySelectorAll('[id^="player-card-"]').forEach(c => {
+    c.classList.remove('player-card-active-dropdown');
+    const idx = parseInt(c.id.replace('player-card-', ''));
+    if (!isNaN(idx)) {
+      c.style.zIndex = `${30 - idx}`;
+    }
+  });
+};
+
+// Mostra o dropdown de autocomplete com elevação de z-index do card ativo
+window.showRosterAutocomplete = function(playerIndex) {
+  window.hideAllRosterAutocompletes();
 
   const dropdown = document.getElementById(`roster-autocomplete-dropdown-${playerIndex}`);
   const input = document.getElementById(`player-name-input-${playerIndex}`);
+  const card = document.getElementById(`player-card-${playerIndex}`);
   if (!dropdown || !input) return;
+
+  if (card) {
+    card.classList.add('player-card-active-dropdown');
+    card.style.zIndex = '100';
+  }
 
   window.renderRosterAutocompleteDropdown(playerIndex, input.value);
   dropdown.classList.remove('hidden');
 };
 
-// Trata digitação no input do nome
+// Trata digitação no input do nome com agendamento de busca na API
 window.handlePlayerNameInput = function(playerIndex, value) {
+  const card = document.getElementById(`player-card-${playerIndex}`);
+  if (card) {
+    card.classList.add('player-card-active-dropdown');
+    card.style.zIndex = '100';
+  }
+
   window.renderRosterAutocompleteDropdown(playerIndex, value);
   const dropdown = document.getElementById(`roster-autocomplete-dropdown-${playerIndex}`);
   if (dropdown && dropdown.classList.contains('hidden')) {
     dropdown.classList.remove('hidden');
   }
+
+  window.scheduleApiAutocompleteSearch(playerIndex, value);
 };
 
-// Renderiza o dropdown do autocomplete
+// Busca inteligente e econômica na API (com debounce de 400ms e cache)
+window.scheduleApiAutocompleteSearch = function(playerIndex, rawValue) {
+  if (apiSearchDebounceTimer) {
+    clearTimeout(apiSearchDebounceTimer);
+    apiSearchDebounceTimer = null;
+  }
+
+  const query = (rawValue || '').trim();
+  if (!query || query.startsWith('Player ') || query.startsWith('Reserva ')) {
+    isApiSearching = false;
+    currentSearchingNick = '';
+    return;
+  }
+
+  const apiKey = getHenrikApiKey();
+  if (!apiKey) return;
+
+  // Consulta a API quando o usuário digita Riot ID com TAG (ex: nick#tag)
+  if (!query.includes('#')) return;
+
+  const [name, tag] = query.split('#').map(s => s.trim());
+  if (!name || !tag || tag.length < 2) return;
+
+  const cacheKey = `${name.toLowerCase()}#${tag.toLowerCase()}`;
+  if (apiAccountCache.has(cacheKey)) {
+    window.renderRosterAutocompleteDropdown(playerIndex, query);
+    return;
+  }
+
+  isApiSearching = true;
+  currentSearchingNick = cacheKey;
+  window.renderRosterAutocompleteDropdown(playerIndex, query);
+
+  apiSearchDebounceTimer = setTimeout(async () => {
+    try {
+      const accRes = await fetch(`https://api.henrikdev.xyz/valorant/v1/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`, {
+        headers: { 'Authorization': apiKey }
+      });
+
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        if (accData.data) {
+          apiAccountCache.set(cacheKey, {
+            found: true,
+            name: accData.data.name,
+            tag: accData.data.tag,
+            puuid: accData.data.puuid,
+            region: accData.data.region || 'br',
+            level: accData.data.account_level || 0
+          });
+        }
+      } else {
+        apiAccountCache.set(cacheKey, {
+          found: false,
+          error: accRes.status === 404 ? 'Jogadora não encontrada na Riot' : 'API indisponível'
+        });
+      }
+    } catch (e) {
+      console.warn('Erro na consulta rápida da API:', e);
+    } finally {
+      isApiSearching = false;
+      window.renderRosterAutocompleteDropdown(playerIndex, query);
+    }
+  }, 400);
+};
+
+// Executa busca rápida com TAG sugerida
+window.triggerQuickApiSearch = function(playerIndex, fullNick) {
+  const input = document.getElementById(`player-name-input-${playerIndex}`);
+  if (input) {
+    input.value = fullNick;
+    window.handlePlayerNameInput(playerIndex, fullNick);
+  }
+};
+
+// Renderiza o dropdown do autocomplete com integração mista (Banco + API Riot)
 window.renderRosterAutocompleteDropdown = function(playerIndex, filterQuery = '') {
   const dropdown = document.getElementById(`roster-autocomplete-dropdown-${playerIndex}`);
   if (!dropdown) return;
 
   const roster = state.roster || [];
-  const cleanQuery = filterQuery.trim().toLowerCase();
+  const cleanQuery = (filterQuery || '').trim().toLowerCase();
+  const rawQuery = (filterQuery || '').trim();
 
   const isGeneric = cleanQuery.startsWith('player ') || cleanQuery.startsWith('reserva ');
   const filtered = cleanQuery && !isGeneric
     ? roster.filter(p => p.name.toLowerCase().includes(cleanQuery))
     : roster;
 
-  let html = `
-    <div class="p-1.5 bg-[#0a1018] border-b border-[#1b2838] flex items-center justify-between text-[9px] font-tactical uppercase tracking-wider text-gray-400">
-      <span>Banco de Jogadoras</span>
-      <span class="text-emerald-400 font-mono">${filtered.length} opções</span>
-    </div>
-    <div class="divide-y divide-[#15202e] max-h-48 overflow-y-auto">
-  `;
+  // Verifica se há resultado em cache da API Riot para exibir com destaque
+  let apiCardHtml = '';
+  if (cleanQuery.includes('#')) {
+    const [name, tag] = cleanQuery.split('#').map(s => s.trim());
+    if (name && tag) {
+      const cacheKey = `${name}#${tag}`;
+      const cached = apiAccountCache.get(cacheKey);
 
-  if (filtered.length === 0) {
-    html += `
-      <div class="p-2.5 text-center text-xs text-gray-400">
-        Nenhuma jogadora encontrada no banco.
+      if (cached && cached.found) {
+        apiCardHtml = `
+          <div onmousedown="event.preventDefault(); window.selectApiFoundPlayer(${playerIndex}, '${escapeHtml(cached.name)}#${escapeHtml(cached.tag)}', '${cached.region}', '${cached.level}', '${cached.puuid}')"
+               ontouchend="event.preventDefault(); window.selectApiFoundPlayer(${playerIndex}, '${escapeHtml(cached.name)}#${escapeHtml(cached.tag)}', '${cached.region}', '${cached.level}', '${cached.puuid}')"
+               class="p-2.5 bg-[#0a1f33] hover:bg-[#102d44] border-b border-sky-500/40 cursor-pointer flex items-center justify-between gap-2 transition group">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-400 flex items-center justify-center text-sky-300 font-bold text-xs flex-shrink-0">
+                ⚡
+              </div>
+              <div class="truncate min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-xs font-bold text-white group-hover:text-sky-300 truncate">${escapeHtml(cached.name)}#${escapeHtml(cached.tag)}</span>
+                  <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-sky-950 text-sky-300 border border-sky-500/40 font-bold">Nível ${cached.level}</span>
+                  <span class="text-[9px] font-mono uppercase px-1 py-0.2 rounded bg-[#162537] text-gray-300">${cached.region.toUpperCase()}</span>
+                </div>
+                <div class="text-[9px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Perfil Oficial da Riot Games • Clique para usar</span>
+                </div>
+              </div>
+            </div>
+            <span class="btn-tactical px-2 py-1 bg-sky-600 hover:bg-sky-500 text-[10px] font-bold text-white rounded shadow flex-shrink-0">
+              Usar
+            </span>
+          </div>
+        `;
+      } else if (cached && cached.found === false) {
+        apiCardHtml = `
+          <div class="p-2 bg-red-950/40 border-b border-red-500/30 text-[10px] text-red-300 flex items-center gap-1.5">
+            <span>⚠️</span>
+            <span>${cached.error || 'Jogadora não encontrada na API da Riot.'}</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Indicador de busca em segundo plano na API
+  let loadingPillHtml = '';
+  if (isApiSearching) {
+    loadingPillHtml = `
+      <div class="p-2 bg-[#091522] border-b border-sky-500/30 flex items-center gap-2 text-[10px] text-sky-300">
+        <div class="w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+        <span class="truncate">Consultando API da Riot Games para "${escapeHtml(rawQuery)}"...</span>
+      </div>
+    `;
+  }
+
+  let listHtml = '';
+  if (filtered.length === 0 && !apiCardHtml) {
+    listHtml = `
+      <div class="p-3 text-center text-xs text-gray-400">
+        Nenhuma jogadora no banco com esse nome.
       </div>
     `;
   } else {
@@ -816,21 +977,23 @@ window.renderRosterAutocompleteDropdown = function(playerIndex, filterQuery = ''
       const topIcons = (item.mostPlayed || []).slice(0, 3).map(agentName => {
         const icon = getAgentIcon(agentName);
         const color = getAgentColor(agentName);
-        return `<img src="${icon}" alt="${agentName}" title="${agentName}" class="w-3.5 h-3.5 rounded-full object-cover border flex-shrink-0" style="border-color: ${color}">`;
+        return `<img src="${icon}" alt="${agentName}" title="${agentName}" class="w-4 h-4 rounded-full object-cover border flex-shrink-0" style="border-color: ${color}">`;
       }).join('');
 
       const kdBadge = item.kd ? `
-        <span class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+        <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
           K/D ${item.kd}
         </span>
       ` : '';
 
-      html += `
-        <div onmousedown="window.selectRosterPlayer(${playerIndex}, '${escapeHtml(item.name)}')"
-             class="px-2.5 py-1.5 hover:bg-[#162537] cursor-pointer flex items-center justify-between gap-2 transition group">
-          <div class="flex items-center gap-1.5 truncate min-w-0">
+      listHtml += `
+        <div onmousedown="event.preventDefault(); window.selectRosterPlayer(${playerIndex}, '${escapeHtml(item.name)}')"
+             ontouchend="event.preventDefault(); window.selectRosterPlayer(${playerIndex}, '${escapeHtml(item.name)}')"
+             class="px-2.5 py-2 hover:bg-[#142334] cursor-pointer flex items-center justify-between gap-2 transition group">
+          <div class="flex items-center gap-2 truncate min-w-0">
             <span class="text-xs font-bold text-white group-hover:text-emerald-300 truncate">${escapeHtml(item.name)}</span>
             ${kdBadge}
+            ${item.role ? `<span class="text-[8px] font-mono uppercase px-1 rounded bg-[#162537] text-gray-400 hidden xs:inline">${item.role}</span>` : ''}
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
             ${topIcons}
@@ -840,29 +1003,74 @@ window.renderRosterAutocompleteDropdown = function(playerIndex, filterQuery = ''
     });
   }
 
-  // Opção para salvar o texto digitado como nova jogadora
-  if (cleanQuery && cleanQuery.length > 2 && !isGeneric && !roster.some(p => p.name.toLowerCase() === cleanQuery)) {
-    html += `
-      <div onmousedown="window.saveInputToRoster(${playerIndex}, '${escapeHtml(filterQuery.trim())}')"
-           class="p-2 bg-[#0d1724] hover:bg-[#18283d] cursor-pointer text-xs font-tactical font-semibold text-sky-300 border-t border-[#1c2c40] flex items-center gap-1.5 transition">
-        <span class="text-emerald-400 font-bold">+</span>
-        <span>Salvar "<b>${escapeHtml(filterQuery.trim())}</b>" no Banco</span>
-      </div>
-    `;
+  // Ações de busca com tags e salvamento
+  let actionsHtml = '';
+  if (cleanQuery && cleanQuery.length >= 2 && !isGeneric) {
+    const isExactInRoster = roster.some(p => p.name.toLowerCase() === cleanQuery);
+    
+    // Sugestão de tags para busca direta na API quando digitou sem #
+    if (!cleanQuery.includes('#')) {
+      actionsHtml += `
+        <div class="p-1.5 bg-[#0a1522] border-t border-[#1a2c40] space-y-1">
+          <div class="text-[9px] uppercase font-tactical text-sky-400 font-bold px-1 flex items-center gap-1">
+            <span>⚡ Buscar na API Oficial Riot:</span>
+          </div>
+          <div class="flex gap-1 flex-wrap">
+            <button type="button" 
+                    onmousedown="event.preventDefault(); window.triggerQuickApiSearch(${playerIndex}, '${escapeHtml(rawQuery)}#BR1')"
+                    class="px-2 py-0.5 rounded bg-[#122234] hover:bg-sky-900/60 border border-sky-500/40 text-[10px] font-semibold text-sky-300 transition">
+              ${escapeHtml(rawQuery)}#BR1
+            </button>
+            <button type="button" 
+                    onmousedown="event.preventDefault(); window.triggerQuickApiSearch(${playerIndex}, '${escapeHtml(rawQuery)}#0303')"
+                    class="px-2 py-0.5 rounded bg-[#122234] hover:bg-sky-900/60 border border-sky-500/40 text-[10px] font-semibold text-sky-300 transition">
+              ${escapeHtml(rawQuery)}#0303
+            </button>
+            <button type="button" 
+                    onmousedown="event.preventDefault(); window.triggerQuickApiSearch(${playerIndex}, '${escapeHtml(rawQuery)}#NA1')"
+                    class="px-2 py-0.5 rounded bg-[#122234] hover:bg-sky-900/60 border border-sky-500/40 text-[10px] font-semibold text-sky-300 transition">
+              ${escapeHtml(rawQuery)}#NA1
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (!isExactInRoster) {
+      actionsHtml += `
+        <div onmousedown="event.preventDefault(); window.saveInputToRoster(${playerIndex}, '${escapeHtml(rawQuery)}')"
+             ontouchend="event.preventDefault(); window.saveInputToRoster(${playerIndex}, '${escapeHtml(rawQuery)}')"
+             class="p-2 bg-[#091522] hover:bg-[#112438] cursor-pointer text-xs font-tactical font-semibold text-emerald-300 border-t border-[#18283a] flex items-center gap-1.5 transition">
+          <span class="text-emerald-400 font-bold text-sm">+</span>
+          <span>Salvar "<b>${escapeHtml(rawQuery)}</b>" no Banco de Jogadoras</span>
+        </div>
+      `;
+    }
   }
 
-  html += `
+  dropdown.innerHTML = `
+    <div class="p-1.5 bg-[#090f17] border-b border-[#1b2838] flex items-center justify-between text-[9px] font-tactical uppercase tracking-wider text-gray-400">
+      <span class="flex items-center gap-1">
+        <span class="text-sky-400">🔍</span>
+        <span>Banco & API Riot</span>
+      </span>
+      <span class="text-emerald-400 font-mono">${filtered.length} no banco</span>
     </div>
-    <div class="p-1.5 bg-[#0a1018] border-t border-[#1b2838] flex items-center justify-between text-[9px] text-gray-500">
-      <span>Clique para preencher nick, K/D e agentes</span>
-      <button type="button" onmousedown="window.openRosterModal()" class="text-emerald-400 hover:underline">Ver Banco ↗</button>
+    ${loadingPillHtml}
+    ${apiCardHtml}
+    <div class="divide-y divide-[#13202e] max-h-52 overflow-y-auto">
+      ${listHtml}
+    </div>
+    ${actionsHtml}
+    <div class="p-1.5 bg-[#080e16] border-t border-[#182535] flex items-center justify-between text-[9px] text-gray-400">
+      <span class="hidden xs:inline">Pressione ESC para fechar</span>
+      <span class="xs:hidden">Toque para selecionar</span>
+      <button type="button" onmousedown="event.preventDefault(); window.openRosterModal()" class="text-emerald-400 hover:underline font-semibold">Ver Banco ↗</button>
     </div>
   `;
-
-  dropdown.innerHTML = html;
 };
 
-// Seleciona uma jogadora do autocomplete
+// Seleciona uma jogadora do autocomplete (Banco local)
 window.selectRosterPlayer = function(playerIndex, playerName) {
   const currentPlayers = state.lineups[state.activeMapId];
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
@@ -880,6 +1088,7 @@ window.selectRosterPlayer = function(playerIndex, playerName) {
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
   renderPlayersList();
+  window.hideAllRosterAutocompletes();
   showToast(`Jogadora "${playerName}" carregada com sucesso!`, 'success');
 
   // Se tiver Riot ID (#TAG) e chave HenrikDev, atualiza os dados ao vivo em segundo plano
@@ -887,6 +1096,40 @@ window.selectRosterPlayer = function(playerIndex, playerName) {
   if (henrikKey && playerName.includes('#')) {
     autoFetchPlayerStatsInBackground(playerIndex, playerName);
   }
+};
+
+// Seleciona jogadora validada diretamente pela API da Riot Games
+window.selectApiFoundPlayer = function(playerIndex, fullRiotId, region, level, puuid) {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  currentPlayers[playerIndex].name = fullRiotId;
+
+  // Se já tiver dados locais prévios no roster, aproveita
+  const rosterItem = (state.roster || []).find(p => p.name.toLowerCase() === fullRiotId.toLowerCase());
+  if (rosterItem) {
+    if (rosterItem.kd) currentPlayers[playerIndex].kd = rosterItem.kd;
+    if (Array.isArray(rosterItem.mostPlayed) && rosterItem.mostPlayed.length > 0) {
+      currentPlayers[playerIndex].mostPlayed = [...rosterItem.mostPlayed];
+    }
+  }
+
+  // Cadastra ou atualiza no banco da equipe
+  upsertRosterPlayer({
+    name: fullRiotId,
+    kd: currentPlayers[playerIndex].kd || '',
+    mostPlayed: currentPlayers[playerIndex].mostPlayed || [],
+    role: 'Flex'
+  });
+
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+  renderPlayersList();
+  window.hideAllRosterAutocompletes();
+  showToast(`⚡ ${fullRiotId} aplicada via API da Riot Games!`, 'success');
+
+  // Puxa histórico de partidas e K/D automaticamente
+  autoFetchPlayerStatsInBackground(playerIndex, fullRiotId);
 };
 
 // Salva input digitado no banco
@@ -909,7 +1152,12 @@ window.saveInputToRoster = function(playerIndex, rawName) {
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
   renderPlayersList();
+  window.hideAllRosterAutocompletes();
   showToast(`Jogadora "${cleanName}" cadastrada no Banco!`, 'success');
+
+  if (cleanName.includes('#') && getHenrikApiKey()) {
+    autoFetchPlayerStatsInBackground(playerIndex, cleanName);
+  }
 };
 
 // Atualiza o nome da jogadora ao alterar input
@@ -2008,4 +2256,17 @@ function escapeHtml(string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// Fechar dropdowns de autocomplete ao clicar fora ou pressionar ESC
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[id^="player-name-wrapper-"]') && !e.target.closest('[id^="roster-autocomplete-dropdown-"]')) {
+    window.hideAllRosterAutocompletes();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    window.hideAllRosterAutocompletes();
+  }
+});
 })();

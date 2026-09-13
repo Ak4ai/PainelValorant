@@ -99,6 +99,10 @@ h1, h2, h3, .font-tactical {
   max-width: 100%;
 }
 
+.player-card-active-dropdown {
+  z-index: 100 !important;
+}
+
 .tactical-card::before {
   content: '';
   position: absolute;
