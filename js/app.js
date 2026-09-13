@@ -48,14 +48,36 @@ function initializeDefaultLineups() {
     state.roster = Array.isArray(DEFAULT_ROSTER) ? [...DEFAULT_ROSTER] : [];
   }
 
-  // Garante que c0rt3z#0303 esteja disponível no banco
-  if (!state.roster.some(p => p.name.toLowerCase() === 'c0rt3z#0303')) {
-    state.roster.unshift({
-      name: 'c0rt3z#0303',
-      kd: '1.18',
-      mostPlayed: ['Jett', 'Reyna', 'Omen'],
-      role: 'Duelista'
-    });
+  // Garante que c0rt3z#0303 esteja disponível no banco com estatísticas reais da API
+  const c0rt3zData = {
+    name: 'c0rt3z#0303',
+    kd: '1.09',
+    mostPlayed: ['Killjoy', 'Cypher', 'Omen'],
+    role: 'Sentinela / Flex',
+    overallRating: '7.5',
+    mapRatings: {
+      ascent: '9.0',
+      fracture: '10.0',
+      lotus: '8.3',
+      sunset: '6.9',
+      icebox: '5.4',
+      haven: '5.3',
+      breeze: '4.1'
+    }
+  };
+
+  const c0rt3zIdx = state.roster.findIndex(p => p.name.toLowerCase() === 'c0rt3z#0303');
+  if (c0rt3zIdx >= 0) {
+    state.roster[c0rt3zIdx] = {
+      ...c0rt3zData,
+      ...state.roster[c0rt3zIdx],
+      mapRatings: {
+        ...c0rt3zData.mapRatings,
+        ...(state.roster[c0rt3zIdx].mapRatings || {})
+      }
+    };
+  } else {
+    state.roster.unshift(c0rt3zData);
   }
 
   // Garante que cada mapa tenha 7 jogadoras (5 Titulares + 2 Reservas Flex)
@@ -79,7 +101,7 @@ function initializeDefaultLineups() {
       }
     }
 
-    // Coleta jogadoras cadastradas nos mapas para o roster
+    // Coleta e sincroniza jogadoras cadastradas nos mapas com o roster
     state.lineups[map.id].forEach(p => {
       if (p.name && !p.name.startsWith('Player ') && !p.name.startsWith('Reserva ') && p.name.trim()) {
         const found = state.roster.find(r => r.name.toLowerCase() === p.name.trim().toLowerCase());
@@ -88,12 +110,18 @@ function initializeDefaultLineups() {
             name: p.name.trim(),
             kd: p.kd || '',
             mostPlayed: Array.isArray(p.mostPlayed) ? [...p.mostPlayed] : [],
-            role: 'Flex'
+            role: 'Flex',
+            rendimento: p.rendimento || '',
+            mapRatings: p.rendimento ? { [map.id.toLowerCase()]: p.rendimento } : {}
           });
         } else {
-          if (!found.kd && p.kd) found.kd = p.kd;
-          if ((!found.mostPlayed || found.mostPlayed.length === 0) && p.mostPlayed && p.mostPlayed.length > 0) {
-            found.mostPlayed = [...p.mostPlayed];
+          if (!p.kd && found.kd) p.kd = found.kd;
+          if ((!p.mostPlayed || p.mostPlayed.length === 0) && found.mostPlayed) {
+            p.mostPlayed = [...found.mostPlayed];
+          }
+          if (!p.rendimento) {
+            const mRend = found.mapRatings?.[map.id.toLowerCase()] || found.overallRating;
+            if (mRend) p.rendimento = mRend;
           }
         }
       }
@@ -286,6 +314,26 @@ function renderMapTabs() {
 // Troca de Mapa
 window.switchMap = function(mapId) {
   state.activeMapId = mapId;
+
+  // Sincroniza o rendimento das jogadoras para o novo mapa a partir do banco (roster) se ainda estiver vazio
+  const currentLineup = state.lineups[mapId];
+  if (currentLineup && Array.isArray(currentLineup)) {
+    let changed = false;
+    currentLineup.forEach(p => {
+      if (p.name && p.name.includes('#') && !p.name.startsWith('Player ') && !p.name.startsWith('Reserva ') && !p.rendimento) {
+        const found = (state.roster || []).find(r => r.name.toLowerCase() === p.name.trim().toLowerCase());
+        if (found) {
+          const rating = found.mapRatings?.[mapId.toLowerCase()] || found.overallRating;
+          if (rating) {
+            p.rendimento = rating;
+            changed = true;
+          }
+        }
+      }
+    });
+    if (changed) saveCurrentState();
+  }
+
   renderMapTabs();
   renderActiveMap();
 };
@@ -546,9 +594,9 @@ function renderPlayersList() {
             <!-- Rendimento no Mapa -->
             <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${ratingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10)">
               <span class="text-[9px] font-tactical font-bold ${ratingVisual.labelColor}">Rend:</span>
-              <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="8.5" 
+              <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="--" 
                      onchange="window.updatePlayerRendimento(${index}, this.value)" 
-                     class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${ratingVisual.valColor} focus:outline-none text-center">
+                     class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${ratingVisual.valColor} placeholder-gray-600 focus:outline-none text-center">
             </div>
             <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker / Conforto)">
               <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
@@ -756,9 +804,9 @@ function renderPlayersList() {
               <!-- Rendimento no Mapa -->
               <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${rRatingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10)">
                 <span class="text-[9px] font-tactical font-bold ${rRatingVisual.labelColor}">Rend:</span>
-                <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="8.5" 
+                <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="--" 
                        onchange="window.updatePlayerRendimento(${actualIndex}, this.value)" 
-                       class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${rRatingVisual.valColor} focus:outline-none text-center">
+                       class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${rRatingVisual.valColor} placeholder-gray-600 focus:outline-none text-center">
               </div>
               <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker)">
                 <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
@@ -894,6 +942,16 @@ window.updatePlayerRendimento = function(playerIndex, newRend) {
 
   const cleanVal = (newRend || '').trim().replace(',', '.');
   currentPlayers[playerIndex].rendimento = cleanVal;
+
+  // Atualiza também no roster se a jogadora estiver cadastrada
+  const pName = currentPlayers[playerIndex].name;
+  if (pName && !pName.startsWith('Player ') && !pName.startsWith('Reserva ')) {
+    const found = (state.roster || []).find(r => r.name.toLowerCase() === pName.trim().toLowerCase());
+    if (found) {
+      if (!found.mapRatings) found.mapRatings = {};
+      found.mapRatings[state.activeMapId.toLowerCase()] = cleanVal;
+    }
+  }
 
   saveCurrentState();
   syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
@@ -1602,6 +1660,8 @@ window.selectRosterPlayer = function(playerIndex, playerName) {
     if (Array.isArray(rosterItem.mostPlayed) && rosterItem.mostPlayed.length > 0) {
       currentPlayers[playerIndex].mostPlayed = [...rosterItem.mostPlayed];
     }
+    const mapRating = rosterItem.mapRatings?.[state.activeMapId.toLowerCase()] || rosterItem.overallRating;
+    if (mapRating) currentPlayers[playerIndex].rendimento = mapRating;
   }
 
   saveCurrentState();
@@ -1631,6 +1691,8 @@ window.selectApiFoundPlayer = function(playerIndex, fullRiotId, region, level, p
     if (Array.isArray(rosterItem.mostPlayed) && rosterItem.mostPlayed.length > 0) {
       currentPlayers[playerIndex].mostPlayed = [...rosterItem.mostPlayed];
     }
+    const mapRating = rosterItem.mapRatings?.[state.activeMapId.toLowerCase()] || rosterItem.overallRating;
+    if (mapRating) currentPlayers[playerIndex].rendimento = mapRating;
   }
 
   // Cadastra ou atualiza no banco da equipe
@@ -1647,7 +1709,7 @@ window.selectApiFoundPlayer = function(playerIndex, fullRiotId, region, level, p
   window.hideAllRosterAutocompletes();
   showToast(`⚡ ${fullRiotId} aplicada via API da Riot Games!`, 'success');
 
-  // Puxa histórico de partidas e K/D automaticamente
+  // Puxa histórico de partidas, K/D e rendimento por mapa automaticamente
   autoFetchPlayerStatsInBackground(playerIndex, fullRiotId);
 };
 
@@ -1688,7 +1750,7 @@ window.updatePlayerName = function(playerIndex, newName) {
   const finalName = newName.trim() || defaultName;
   currentPlayers[playerIndex].name = finalName;
 
-  // Se o nick digitado coincidir com alguém do Banco de Jogadoras, carrega K/D e agentes imediatamente
+  // Se o nick digitado coincidir com alguém do Banco de Jogadoras, carrega K/D, agentes e rendimento imediatamente
   const inRoster = (state.roster || []).find(r => r.name.toLowerCase() === finalName.toLowerCase());
   if (inRoster) {
     if (inRoster.kd && !currentPlayers[playerIndex].kd) {
@@ -1697,7 +1759,11 @@ window.updatePlayerName = function(playerIndex, newName) {
     if (Array.isArray(inRoster.mostPlayed) && inRoster.mostPlayed.length > 0 && (!currentPlayers[playerIndex].mostPlayed || currentPlayers[playerIndex].mostPlayed.length === 0)) {
       currentPlayers[playerIndex].mostPlayed = [...inRoster.mostPlayed];
     }
-    showToast(`Jogadora "${finalName}" reconhecida! K/D e agentes carregados.`, 'success');
+    if (!currentPlayers[playerIndex].rendimento) {
+      const mapRating = inRoster.mapRatings?.[state.activeMapId.toLowerCase()] || inRoster.overallRating;
+      if (mapRating) currentPlayers[playerIndex].rendimento = mapRating;
+    }
+    showToast(`Jogadora "${finalName}" reconhecida! K/D e rendimento carregados.`, 'success');
   } else if (finalName.includes('#') && !finalName.startsWith('Player ') && !finalName.startsWith('Reserva ')) {
     upsertRosterPlayer({
       name: finalName,
@@ -1764,16 +1830,104 @@ function upsertRosterPlayer(playerObj) {
     state.roster[existingIdx] = {
       ...state.roster[existingIdx],
       ...playerObj,
-      name: playerObj.name.trim()
+      name: playerObj.name.trim(),
+      mapRatings: {
+        ...(state.roster[existingIdx].mapRatings || {}),
+        ...(playerObj.mapRatings || {})
+      },
+      overallRating: playerObj.overallRating || state.roster[existingIdx].overallRating || ''
     };
   } else {
     state.roster.push({
       name: playerObj.name.trim(),
       kd: playerObj.kd || '',
       mostPlayed: Array.isArray(playerObj.mostPlayed) ? [...playerObj.mostPlayed] : [],
-      role: playerObj.role || 'Flex'
+      role: playerObj.role || 'Flex',
+      mapRatings: playerObj.mapRatings || {},
+      overallRating: playerObj.overallRating || ''
     });
   }
+}
+
+// Calcula a nota de rendimento de 0 a 10 com base em K/D, ACS (Combat Score) e Taxa de Vitória
+function calculatePerformanceRating(kills, deaths, score, rounds, wins, totalMatches) {
+  if (!totalMatches || totalMatches === 0) return null;
+  const kd = deaths > 0 ? kills / deaths : kills;
+  const acs = rounds > 0 ? score / rounds : 200;
+  const winRate = wins / totalMatches;
+
+  // Pontuação base do K/D (1.0 K/D -> 6.5, 1.3 K/D -> 8.45, 1.6+ K/D -> 10.0)
+  const kdScore = Math.min(10, Math.max(2, (kd / 1.0) * 6.5));
+  // Pontuação base do ACS (200 ACS -> 7.0, 250 ACS -> 8.75, 290+ ACS -> 10.0)
+  const acsScore = Math.min(10, Math.max(2, (acs / 200) * 7.0));
+  // Bônus/Penalidade de vitórias (-0.75 a +0.75)
+  const winBonus = (winRate - 0.5) * 1.5;
+
+  const rawRating = (kdScore * 0.55 + acsScore * 0.45) + winBonus;
+  return Math.min(10, Math.max(1, rawRating)).toFixed(1);
+}
+
+// Processa o histórico de partidas retornado pela API e extrai estatísticas por mapa
+function processMatchesData(matches, puuid, name, tag) {
+  let totalKills = 0, totalDeaths = 0, totalScore = 0, totalRounds = 0, totalWins = 0;
+  const agentCounts = {};
+  const mapStats = {};
+
+  matches.forEach(m => {
+    const rawMap = (m.metadata?.map || '').toLowerCase().trim();
+    const p = m.players?.all_players?.find(pl => 
+      (puuid && pl.puuid === puuid) ||
+      (pl.name?.toLowerCase() === name.toLowerCase() && pl.tag?.toLowerCase() === tag.toLowerCase())
+    );
+    if (!p) return;
+
+    const k = p.stats?.kills || 0;
+    const d = p.stats?.deaths || 0;
+    const s = p.stats?.score || 0;
+    const r = m.metadata?.rounds_played || 1;
+    const myTeam = p.team?.toLowerCase();
+    const won = !!m.teams?.[myTeam]?.has_won;
+
+    totalKills += k;
+    totalDeaths += d;
+    totalScore += s;
+    totalRounds += r;
+    if (won) totalWins++;
+
+    if (p.character) {
+      agentCounts[p.character] = (agentCounts[p.character] || 0) + 1;
+    }
+
+    if (rawMap) {
+      if (!mapStats[rawMap]) {
+        mapStats[rawMap] = { kills: 0, deaths: 0, score: 0, rounds: 0, wins: 0, total: 0 };
+      }
+      mapStats[rawMap].kills += k;
+      mapStats[rawMap].deaths += d;
+      mapStats[rawMap].score += s;
+      mapStats[rawMap].rounds += r;
+      mapStats[rawMap].total++;
+      if (won) mapStats[rawMap].wins++;
+    }
+  });
+
+  const kd = totalDeaths > 0 ? (totalKills / totalDeaths).toFixed(2) : (totalKills > 0 ? totalKills.toFixed(2) : '');
+  const topAgents = Object.entries(agentCounts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
+  const overallRating = calculatePerformanceRating(totalKills, totalDeaths, totalScore, totalRounds, totalWins, matches.length);
+
+  const mapRatings = {};
+  for (const [mId, s] of Object.entries(mapStats)) {
+    mapRatings[mId] = calculatePerformanceRating(s.kills, s.deaths, s.score, s.rounds, s.wins, s.total);
+  }
+
+  return {
+    kd,
+    topAgents,
+    overallRating,
+    mapRatings,
+    totalKills,
+    totalDeaths
+  };
 }
 
 // Busca automática em segundo plano via HenrikDev API
@@ -1800,38 +1954,47 @@ async function autoFetchPlayerStatsInBackground(playerIndex, riotId) {
 
     const matchData = await matchRes.json();
     if (matchData.data && Array.isArray(matchData.data)) {
-      let kills = 0, deaths = 0;
-      const counts = {};
-      matchData.data.forEach(m => {
-        const p = m.players?.all_players?.find(pl => 
-          (puuid && pl.puuid === puuid) ||
-          (pl.name?.toLowerCase() === name.toLowerCase() && pl.tag?.toLowerCase() === tag.toLowerCase())
-        );
-        if (p) {
-          kills += p.stats?.kills || 0;
-          deaths += p.stats?.deaths || 0;
-          if (p.character) counts[p.character] = (counts[p.character] || 0) + 1;
-        }
-      });
+      const stats = processMatchesData(matchData.data, puuid, name, tag);
 
       const currentPlayers = state.lineups[state.activeMapId];
       if (currentPlayers && currentPlayers[playerIndex]) {
-        if (deaths > 0) currentPlayers[playerIndex].kd = (kills / deaths).toFixed(2);
-        const topAgents = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
-        if (topAgents.length > 0) currentPlayers[playerIndex].mostPlayed = topAgents;
+        if (stats.kd) currentPlayers[playerIndex].kd = stats.kd;
+        if (stats.topAgents.length > 0) currentPlayers[playerIndex].mostPlayed = stats.topAgents;
+
+        const activeMapRating = stats.mapRatings[state.activeMapId.toLowerCase()] || stats.overallRating;
+        if (activeMapRating) {
+          currentPlayers[playerIndex].rendimento = activeMapRating;
+        }
+
+        // Atualiza também nas outras lineups onde esta jogadora estiver escalada
+        MAPS_DATA.forEach(map => {
+          const mapLineup = state.lineups[map.id];
+          if (mapLineup && mapLineup[playerIndex] && mapLineup[playerIndex].name?.toLowerCase() === riotId.toLowerCase()) {
+            const mapRating = stats.mapRatings[map.id.toLowerCase()] || stats.overallRating;
+            if (mapRating) {
+              mapLineup[playerIndex].rendimento = mapRating;
+              if (stats.kd) mapLineup[playerIndex].kd = stats.kd;
+              if (stats.topAgents.length > 0) mapLineup[playerIndex].mostPlayed = [...stats.topAgents];
+              syncSavePlayer(map.id, playerIndex, mapLineup[playerIndex], state.lineups);
+            }
+          }
+        });
 
         upsertRosterPlayer({
           name: riotId,
           kd: currentPlayers[playerIndex].kd,
-          mostPlayed: currentPlayers[playerIndex].mostPlayed
+          mostPlayed: currentPlayers[playerIndex].mostPlayed,
+          mapRatings: stats.mapRatings,
+          overallRating: stats.overallRating
         });
 
         saveCurrentState();
         syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
         renderPlayersList();
         
-        const topStr = topAgents.length > 0 ? ` (${topAgents.join(', ')})` : '';
-        showToast(`⚡ Tracker sincronizado para ${riotId}: K/D ${currentPlayers[playerIndex].kd}${topStr}`, 'success');
+        const topStr = stats.topAgents.length > 0 ? ` (${stats.topAgents.join(', ')})` : '';
+        const rendStr = activeMapRating ? ` • Rend. ${state.activeMapId}: ${activeMapRating}/10` : '';
+        showToast(`⚡ API Riot: ${riotId} sincronizado (K/D ${currentPlayers[playerIndex].kd}${rendStr}${topStr})`, 'success');
       }
     }
   } catch (err) {
@@ -2225,20 +2388,13 @@ window.fetchTrackerAuto = async function() {
     if (matchRes.ok) {
       const matchData = await matchRes.json();
       if (matchData.data && Array.isArray(matchData.data)) {
-        const counts = {};
-        matchData.data.forEach(m => {
-          const p = m.players?.all_players?.find(pl => 
-            (puuid && pl.puuid === puuid) ||
-            (pl.name?.toLowerCase() === name.toLowerCase() && pl.tag?.toLowerCase() === tag.toLowerCase())
-          );
-          if (p) {
-            totalKills += p.stats?.kills || 0;
-            totalDeaths += p.stats?.deaths || 0;
-            if (p.character) counts[p.character] = (counts[p.character] || 0) + 1;
-          }
-        });
-        if (totalDeaths > 0) calculatedKd = (totalKills / totalDeaths).toFixed(2);
-        topAgents = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 3);
+        const stats = processMatchesData(matchData.data, puuid, name, tag);
+        calculatedKd = stats.kd;
+        topAgents = stats.topAgents;
+        totalKills = stats.totalKills;
+        totalDeaths = stats.totalDeaths;
+        state.trackerModal.tempMapRatings = stats.mapRatings;
+        state.trackerModal.tempOverallRating = stats.overallRating;
       }
     }
 
@@ -2252,10 +2408,12 @@ window.fetchTrackerAuto = async function() {
       renderTrackerModalTopAgents();
     }
 
+    const activeMapRating = state.trackerModal.tempMapRatings?.[state.activeMapId.toLowerCase()] || state.trackerModal.tempOverallRating;
     const details = [
       `Região: ${region.toUpperCase()}`,
       accLevel ? `Nível ${accLevel}` : '',
       calculatedKd ? `K/D: ${calculatedKd} (${totalKills}K / ${totalDeaths}D)` : '',
+      activeMapRating ? `Rendimento em ${state.activeMapId}: ${activeMapRating}/10` : '',
       topAgents.length > 0 ? `Mais jogados: ${topAgents.join(', ')}` : ''
     ].filter(Boolean).join(' • ');
 
@@ -2287,11 +2445,34 @@ window.saveTrackerModalData = function() {
   currentPlayers[pIdx].kd = newKd;
   currentPlayers[pIdx].mostPlayed = [...(state.trackerModal.tempTopAgents || [])];
 
+  const activeMapRating = state.trackerModal.tempMapRatings?.[state.activeMapId.toLowerCase()] || state.trackerModal.tempOverallRating;
+  if (activeMapRating) {
+    currentPlayers[pIdx].rendimento = activeMapRating;
+  }
+
+  // Atualiza também nas outras lineups onde a jogadora estiver
+  if (state.trackerModal.tempMapRatings) {
+    MAPS_DATA.forEach(map => {
+      const mapLineup = state.lineups[map.id];
+      if (mapLineup && mapLineup[pIdx] && mapLineup[pIdx].name?.toLowerCase() === newNick.toLowerCase()) {
+        const mRating = state.trackerModal.tempMapRatings[map.id.toLowerCase()] || state.trackerModal.tempOverallRating;
+        if (mRating) {
+          mapLineup[pIdx].rendimento = mRating;
+          mapLineup[pIdx].kd = newKd;
+          mapLineup[pIdx].mostPlayed = [...currentPlayers[pIdx].mostPlayed];
+          syncSavePlayer(map.id, pIdx, mapLineup[pIdx], state.lineups);
+        }
+      }
+    });
+  }
+
   if (newNick && !newNick.startsWith('Player ') && !newNick.startsWith('Reserva ')) {
     upsertRosterPlayer({
       name: newNick,
       kd: newKd,
       mostPlayed: currentPlayers[pIdx].mostPlayed,
+      mapRatings: state.trackerModal.tempMapRatings || {},
+      overallRating: state.trackerModal.tempOverallRating || '',
       role: 'Flex'
     });
   }
