@@ -4,21 +4,39 @@ const STORAGE_KEY_CONFIG = 'valorant_lineup_firebase_config';
 const STORAGE_KEY_DATA = 'valorant_lineup_local_data';
 const STORAGE_KEY_TEAM = 'valorant_lineup_team_name';
 
+// Configuração padrão do projeto fornecida pelo usuário
+export const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDWqTxRoxdYUzhRj9iNOf9KYThWYe0dOWE",
+  authDomain: "coachvalorants-ceacc.firebaseapp.com",
+  databaseURL: "https://coachvalorants-ceacc-default-rtdb.firebaseio.com",
+  projectId: "coachvalorants-ceacc",
+  storageBucket: "coachvalorants-ceacc.firebasestorage.app",
+  messagingSenderId: "634844411782",
+  appId: "1:634844411782:web:d3c80de544360a3a01de07",
+  measurementId: "G-K280XM8LTW"
+};
+
 let dbInstance = null;
 let isConnectedToFirebase = false;
 let onSyncCallback = null;
 
-// Configuração padrão que pode ser substituída pelo usuário na tela ou via localStorage
+// Retorna a configuração salva ou a configuração padrão do projeto
 export function getSavedFirebaseConfig() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.apiKey) {
+        if (!parsed.databaseURL && parsed.projectId) {
+          parsed.databaseURL = `https://${parsed.projectId}-default-rtdb.firebaseio.com`;
+        }
+        return parsed;
+      }
     }
   } catch (e) {
     console.warn('Erro ao ler configuração salva:', e);
   }
-  return null;
+  return DEFAULT_FIREBASE_CONFIG;
 }
 
 export function saveFirebaseConfig(configObj) {
@@ -40,10 +58,15 @@ export function initRealtimeSync(callback) {
   onSyncCallback = callback;
   const config = getSavedFirebaseConfig();
 
-  if (!config || !config.apiKey || !config.databaseURL) {
+  if (!config || !config.apiKey) {
     console.log('Firebase não configurado ainda. Rodando em modo LocalStorage.');
     loadLocalData();
     return { status: 'offline', message: 'Modo Local (Firebase não configurado)' };
+  }
+
+  // Garante que o databaseURL esteja preenchido
+  if (!config.databaseURL && config.projectId) {
+    config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
   }
 
   try {
@@ -89,6 +112,9 @@ export function initRealtimeSync(callback) {
           lineupsRef.set(local);
         }
       }
+    }, (error) => {
+      console.error('Erro de permissão no Firebase Realtime Database:', error);
+      updateConnectionStatusBadge(false, 'Regras de Permissão do Firebase');
     });
 
     return { status: 'connected', message: 'Conectado ao Firebase em Tempo Real' };
@@ -112,7 +138,7 @@ export function syncSaveData(fullData) {
     }
   }
 
-  // Notifica outras abas no mesmo navegador via StorageEvent
+  // Notifica outras abas no mesmo navegador
   window.dispatchEvent(new CustomEvent('valorant-local-update', { detail: fullData }));
 }
 
@@ -126,7 +152,7 @@ export function syncSavePlayer(mapId, playerIndex, playerData, allState) {
 
   if (dbInstance && isConnectedToFirebase) {
     try {
-      dbInstance.ref(`valorant_panel/${mapId}/${playerIndex}`).update(playerData);
+      dbInstance.ref(`valorant_panel/lineups/${mapId}/${playerIndex}`).update(playerData);
     } catch (e) {
       console.error('Erro ao atualizar jogador no Firebase:', e);
     }
@@ -170,7 +196,7 @@ function loadLocalData() {
   updateConnectionStatusBadge(false);
 }
 
-function updateConnectionStatusBadge(isOnline) {
+function updateConnectionStatusBadge(isOnline, customLabel) {
   const badge = document.getElementById('connection-status-pill');
   const dot = document.getElementById('connection-status-dot');
   const text = document.getElementById('connection-status-text');
@@ -184,6 +210,6 @@ function updateConnectionStatusBadge(isOnline) {
   } else {
     badge.className = 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/60 cursor-pointer transition';
     dot.className = 'w-2 h-2 rounded-full bg-amber-400';
-    text.textContent = 'Modo Local (Configurar Nuvem)';
+    text.textContent = customLabel || 'Modo Local (Verificar Nuvem)';
   }
 }
