@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=Teko:wght@500;600;700&display=swap');
+
+:root {
+  --v-red: #ff4655;
+  --v-red-hover: #ff2b3d;
+  --v-dark-bg: #090e14;
+  --v-card-bg: #101822;
+  --v-card-border: #1e2c3c;
+  --v-text-main: #ece8e1;
+  --v-text-muted: #8b9bb4;
+  --v-accent-cyan: #00f5d4;
+  --v-accent-gold: #ffd166;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--v-dark-bg);
+  color: var(--v-text-main);
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(255, 70, 85, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(0, 245, 212, 0.04) 0%, transparent 40%),
+    linear-gradient(to bottom, #090e14 0%, #0d131b 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3, .font-tactical {
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.font-hero {
+  font-family: 'Teko', sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d131b;
+}
+::-webkit-scrollbar-thumb {
+  background: #253549;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ff4655;
+}
+
+/* Botões com corte tático Valorant */
+.btn-tactical {
+  position: relative;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  transition: all 0.2s ease;
+}
+
+.btn-tactical:hover {
+  transform: translateY(-1px);
+}
+
+.btn-tactical:active {
+  transform: translateY(1px);
+}
+
+/* Card tático com bordas estilizadas */
+.tactical-card {
+  background: rgba(16, 24, 34, 0.95);
+  border: 1px solid var(--v-card-border);
+  backdrop-filter: blur(8px);
+  position: relative;
+}
+
+.tactical-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: transparent;
+  transition: background-color 0.25s ease;
+}
+
+.tactical-card:hover::before {
+  background: var(--v-red);
+}
+
+/* Badges de Função dos Agentes */
+.role-badge-duelista {
+  background: rgba(254, 121, 57, 0.15);
+  color: #fe7939;
+  border: 1px solid rgba(254, 121, 57, 0.4);
+}
+.role-badge-iniciador {
+  background: rgba(56, 197, 102, 0.15);
+  color: #38c566;
+  border: 1px solid rgba(56, 197, 102, 0.4);
+}
+.role-badge-controlador {
+  background: rgba(116, 52, 235, 0.15);
+  color: #a77eff;
+  border: 1px solid rgba(116, 52, 235, 0.4);
+}
+.role-badge-sentinela {
+  background: rgba(255, 230, 0, 0.15);
+  color: #ffe600;
+  border: 1px solid rgba(255, 230, 0, 0.4);
+}
+
+/* Tabs dos mapas horizontais com scroll suave no mobile */
+.map-tabs-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.map-tabs-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animações e transições */
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Botão Flutuante do WhatsApp para telas mobile */
+.pulse-glow {
+  box-shadow: 0 0 20px rgba(37, 211, 102, 0.35);
+}
+.pulse-glow:hover {
+  box-shadow: 0 0 28px rgba(37, 211, 102, 0.55);
+}
