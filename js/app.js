@@ -221,6 +221,32 @@ window.applyBuildToTeam = function(buildIndex) {
   showToast(`Comp "${chosenBuild.title}" aplicada com sucesso!`, 'success');
 };
 
+// Reseta a build (titulares e reservas) dos 5 jogadores no mapa atual
+window.resetCurrentMapBuild = function() {
+  const currentMap = MAPS_DATA.find(m => m.id === state.activeMapId) || { name: state.activeMapId };
+  const currentPlayers = state.lineups[state.activeMapId];
+
+  if (!currentPlayers || !Array.isArray(currentPlayers)) return;
+
+  const hasPicks = currentPlayers.some(p => (p.titular && p.titular.trim() !== '') || (p.reserva && p.reserva.trim() !== ''));
+  if (!hasPicks) {
+    showToast(`O mapa ${currentMap.name} já está sem agentes definidos.`, 'info');
+    return;
+  }
+
+  const confirmed = window.confirm(`Deseja limpar todos os agentes (Titulares e Reservas) escalados no mapa ${currentMap.name}?\n\nOs nomes das jogadoras serão mantidos.`);
+  if (!confirmed) return;
+
+  currentPlayers.forEach(p => {
+    p.titular = '';
+    p.reserva = '';
+  });
+
+  saveCurrentState();
+  renderPlayersList();
+  showToast(`Build de ${currentMap.name} resetada com sucesso!`, 'info');
+};
+
 // Renderiza a lista dos 5 Jogadores no Mapa
 function renderPlayersList() {
   const container = document.getElementById('players-list-container');

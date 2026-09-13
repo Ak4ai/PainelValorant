@@ -150,7 +150,15 @@
           <span class="w-1.5 h-4 bg-[#ff4655]"></span>
           <h3 class="text-base sm:text-lg font-tactical font-bold text-white tracking-wider">COMPOSIÇÕES SUGERIDAS (BUILDS)</h3>
         </div>
-        <span class="text-[11px] text-gray-400">3 Exemplos Táticos</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] text-gray-400 hidden xs:inline">3 Exemplos Táticos</span>
+          <button onclick="window.resetCurrentMapBuild()" title="Limpar agentes deste mapa" class="text-[11px] text-gray-400 hover:text-red-400 transition flex items-center gap-1 border border-[#233547] hover:border-red-500/40 rounded px-2 py-0.5 bg-[#101822]">
+            <svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+            <span>Resetar</span>
+          </button>
+        </div>
       </div>
 
       <div id="builds-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -165,9 +173,15 @@
           <span class="w-1.5 h-4 bg-[#00f5d4]"></span>
           <h3 class="text-base sm:text-lg font-tactical font-bold text-white tracking-wider">ESCALAÇÃO DO TIME NO MAPA</h3>
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="window.copyCurrentMapSummary()" class="btn-tactical bg-[#16202c] hover:bg-[#1f2d3d] border border-[#283b50] text-xs font-semibold px-3 py-1.5 text-gray-200 flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-[#ff4655]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="window.resetCurrentMapBuild()" title="Limpar agentes titulares e reservas escalados neste mapa" class="btn-tactical bg-[#16202c] hover:bg-red-950/60 text-gray-300 hover:text-red-400 border border-[#283b50] hover:border-red-500/50 text-xs font-semibold px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+            <span>Resetar Build</span>
+          </button>
+          <button onclick="window.copyCurrentMapSummary()" class="btn-tactical bg-[#16202c] hover:bg-[#1f2d3d] border border-[#283b50] text-xs font-semibold px-2.5 sm:px-3 py-1.5 text-gray-200 flex items-center gap-1.5 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-[#ff4655] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
             </svg>
             <span>Copiar Mapa Atual</span>
