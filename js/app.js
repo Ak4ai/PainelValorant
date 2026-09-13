@@ -32,23 +32,12 @@ const state = {
   whatsappView: 'current' // 'current', 'meta' ou 'all'
 };
 
-// Inicializa a estrutura de lineups e o banco de jogadoras (roster)
-function initializeDefaultLineups() {
-  const local = getLocalData();
-  if (local && typeof local === 'object') {
-    state.lineups = local.lineups || local;
-    if (local.meta) {
-      if (local.meta.teamName) state.teamName = local.meta.teamName;
-      if (Array.isArray(local.meta.roster)) state.roster = local.meta.roster;
-    }
-  }
-
-  // Inicializa roster com DEFAULT_ROSTER se estiver vazio
-  if (!state.roster || state.roster.length === 0) {
+// Garante que c0rt3z#0303 e dados padrão estão presentes no roster com mapRatings
+function ensureRosterDefaults() {
+  if (!state.roster || !Array.isArray(state.roster)) {
     state.roster = Array.isArray(DEFAULT_ROSTER) ? [...DEFAULT_ROSTER] : [];
   }
 
-  // Garante que c0rt3z#0303 esteja disponível no banco com estatísticas reais da API
   const c0rt3zData = {
     name: 'c0rt3z#0303',
     kd: '1.09',
@@ -71,14 +60,84 @@ function initializeDefaultLineups() {
     state.roster[c0rt3zIdx] = {
       ...c0rt3zData,
       ...state.roster[c0rt3zIdx],
+      kd: state.roster[c0rt3zIdx].kd || c0rt3zData.kd,
+      mostPlayed: (state.roster[c0rt3zIdx].mostPlayed && state.roster[c0rt3zIdx].mostPlayed.length > 0)
+        ? state.roster[c0rt3zIdx].mostPlayed
+        : c0rt3zData.mostPlayed,
       mapRatings: {
         ...c0rt3zData.mapRatings,
         ...(state.roster[c0rt3zIdx].mapRatings || {})
-      }
+      },
+      overallRating: state.roster[c0rt3zIdx].overallRating || c0rt3zData.overallRating
     };
   } else {
     state.roster.unshift(c0rt3zData);
   }
+}
+
+// Sincroniza todas as lineups dos mapas com dados e notas de rendimento do roster
+function syncAllLineupsFromRoster() {
+  if (!state.lineups || typeof state.lineups !== 'object') return;
+  ensureRosterDefaults();
+
+  let hasChanged = false;
+  MAPS_DATA.forEach(map => {
+    const lineup = state.lineups[map.id];
+    if (lineup && Array.isArray(lineup)) {
+      lineup.forEach((p, idx) => {
+        if (p.name && !p.name.startsWith('Player ') && !p.name.startsWith('Reserva ') && p.name.trim()) {
+          const found = state.roster.find(r => r.name.toLowerCase() === p.name.trim().toLowerCase());
+          if (found) {
+            if (!p.kd && found.kd) {
+              p.kd = found.kd;
+              hasChanged = true;
+            }
+            if ((!p.mostPlayed || p.mostPlayed.length === 0) && found.mostPlayed && found.mostPlayed.length > 0) {
+              p.mostPlayed = [...found.mostPlayed];
+              hasChanged = true;
+            }
+            if (!p.rendimento) {
+              const mRend = found.mapRatings?.[map.id.toLowerCase()] || found.overallRating;
+              if (mRend) {
+                p.rendimento = mRend;
+                hasChanged = true;
+              }
+            }
+          }
+        }
+      });
+    }
+  });
+
+  if (hasChanged) {
+    saveCurrentState();
+  }
+}
+
+const activeFetchingNicknames = new Set();
+
+function scheduleBackgroundPlayerFetch(playerIndex, riotId) {
+  if (!riotId || !riotId.includes('#') || activeFetchingNicknames.has(riotId.toLowerCase())) return;
+  activeFetchingNicknames.add(riotId.toLowerCase());
+  setTimeout(() => {
+    autoFetchPlayerStatsInBackground(playerIndex, riotId).finally(() => {
+      activeFetchingNicknames.delete(riotId.toLowerCase());
+    });
+  }, 200);
+}
+
+// Inicializa a estrutura de lineups e o banco de jogadoras (roster)
+function initializeDefaultLineups() {
+  const local = getLocalData();
+  if (local && typeof local === 'object') {
+    state.lineups = local.lineups || local;
+    if (local.meta) {
+      if (local.meta.teamName) state.teamName = local.meta.teamName;
+      if (Array.isArray(local.meta.roster)) state.roster = local.meta.roster;
+    }
+  }
+
+  ensureRosterDefaults();
 
   // Garante que cada mapa tenha 7 jogadoras (5 Titulares + 2 Reservas Flex)
   MAPS_DATA.forEach(map => {
@@ -100,33 +159,9 @@ function initializeDefaultLineups() {
         });
       }
     }
-
-    // Coleta e sincroniza jogadoras cadastradas nos mapas com o roster
-    state.lineups[map.id].forEach(p => {
-      if (p.name && !p.name.startsWith('Player ') && !p.name.startsWith('Reserva ') && p.name.trim()) {
-        const found = state.roster.find(r => r.name.toLowerCase() === p.name.trim().toLowerCase());
-        if (!found) {
-          state.roster.push({
-            name: p.name.trim(),
-            kd: p.kd || '',
-            mostPlayed: Array.isArray(p.mostPlayed) ? [...p.mostPlayed] : [],
-            role: 'Flex',
-            rendimento: p.rendimento || '',
-            mapRatings: p.rendimento ? { [map.id.toLowerCase()]: p.rendimento } : {}
-          });
-        } else {
-          if (!p.kd && found.kd) p.kd = found.kd;
-          if ((!p.mostPlayed || p.mostPlayed.length === 0) && found.mostPlayed) {
-            p.mostPlayed = [...found.mostPlayed];
-          }
-          if (!p.rendimento) {
-            const mRend = found.mapRatings?.[map.id.toLowerCase()] || found.overallRating;
-            if (mRend) p.rendimento = mRend;
-          }
-        }
-      }
-    });
   });
+
+  syncAllLineupsFromRoster();
 }
 
 // Inicialização Principal
@@ -150,6 +185,22 @@ document.addEventListener('DOMContentLoaded', () => {
   initRealtimeSync((remoteData, source) => {
     if (!remoteData) return;
 
+    if (remoteData.meta) {
+      if (remoteData.meta.teamName) {
+        state.teamName = remoteData.meta.teamName;
+        const teamInput = document.getElementById('team-name-input');
+        if (teamInput && document.activeElement !== teamInput) {
+          teamInput.value = state.teamName;
+        }
+      }
+      if (Array.isArray(remoteData.meta.roster)) {
+        state.roster = remoteData.meta.roster;
+      }
+    }
+
+    // Garante que o banco de dados preserva mapRatings e c0rt3zData
+    ensureRosterDefaults();
+
     // Se o dado vier no formato { meta, lineups } ou direto
     const incomingLineups = remoteData.lineups || remoteData;
     if (incomingLineups && typeof incomingLineups === 'object') {
@@ -167,27 +218,19 @@ document.addEventListener('DOMContentLoaded', () => {
               flex2: '',
               flex3: '',
               kd: '',
+              rendimento: '',
               mostPlayed: []
             });
           }
           changed = true;
         }
       });
+
+      // Sincroniza notas de rendimento por mapa a partir do roster
+      syncAllLineupsFromRoster();
+
       if (changed) {
         renderPlayersList();
-      }
-    }
-
-    if (remoteData.meta) {
-      if (remoteData.meta.teamName) {
-        state.teamName = remoteData.meta.teamName;
-        const teamInput = document.getElementById('team-name-input');
-        if (teamInput && document.activeElement !== teamInput) {
-          teamInput.value = state.teamName;
-        }
-      }
-      if (Array.isArray(remoteData.meta.roster)) {
-        state.roster = remoteData.meta.roster;
       }
     }
 
@@ -480,8 +523,46 @@ function renderPlayersList() {
   const containerReserves = document.getElementById('reserves-list-container');
   if (!containerTitulares) return;
 
+  ensureRosterDefaults();
+
   const activeMap = MAPS_DATA.find(m => m.id === state.activeMapId) || MAPS_DATA[0];
   const players = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
+
+  // Sincroniza K/D, agentes favoritos e notas de rendimento a partir do banco (roster)
+  let lineupUpdated = false;
+  players.forEach((player, idx) => {
+    if (player.name && !player.name.startsWith('Player ') && !player.name.startsWith('Reserva ') && player.name.trim()) {
+      const cleanName = player.name.trim();
+      const found = (state.roster || []).find(r => r.name.toLowerCase() === cleanName.toLowerCase());
+      if (found) {
+        if (!player.kd && found.kd) {
+          player.kd = found.kd;
+          lineupUpdated = true;
+        }
+        if ((!player.mostPlayed || player.mostPlayed.length === 0) && found.mostPlayed && found.mostPlayed.length > 0) {
+          player.mostPlayed = [...found.mostPlayed];
+          lineupUpdated = true;
+        }
+        if (!player.rendimento) {
+          const mRend = found.mapRatings?.[state.activeMapId.toLowerCase()] || found.overallRating;
+          if (mRend) {
+            player.rendimento = mRend;
+            lineupUpdated = true;
+          }
+        }
+      }
+
+      // Se tiver Riot ID (#TAG) mas ainda estiver sem rendimento e temos chave API, busca ao vivo
+      if (!player.rendimento && cleanName.includes('#') && getHenrikApiKey()) {
+        scheduleBackgroundPlayerFetch(idx, cleanName);
+      }
+    }
+  });
+
+  if (lineupUpdated) {
+    saveCurrentState();
+  }
+
   const titulares = players.slice(0, 5);
   const reserves = players.slice(5, 7);
 
@@ -1955,52 +2036,49 @@ async function autoFetchPlayerStatsInBackground(playerIndex, riotId) {
     const matchData = await matchRes.json();
     if (matchData.data && Array.isArray(matchData.data)) {
       const stats = processMatchesData(matchData.data, puuid, name, tag);
+      if (!stats) return;
 
-      const currentPlayers = state.lineups[state.activeMapId];
-      if (currentPlayers && currentPlayers[playerIndex]) {
-        if (stats.kd) currentPlayers[playerIndex].kd = stats.kd;
-        if (stats.topAgents.length > 0) currentPlayers[playerIndex].mostPlayed = stats.topAgents;
+      // 1. Atualiza no Banco de Jogadoras (Roster) com todas as notas por mapa e nota geral
+      upsertRosterPlayer({
+        name: riotId,
+        kd: stats.kd,
+        mostPlayed: stats.topAgents,
+        mapRatings: stats.mapRatings,
+        overallRating: stats.overallRating,
+        role: 'Flex'
+      });
 
-        const activeMapRating = stats.mapRatings[state.activeMapId.toLowerCase()] || stats.overallRating;
-        if (activeMapRating) {
-          currentPlayers[playerIndex].rendimento = activeMapRating;
-        }
-
-        // Atualiza também nas outras lineups onde esta jogadora estiver escalada
-        MAPS_DATA.forEach(map => {
-          const mapLineup = state.lineups[map.id];
-          if (mapLineup && mapLineup[playerIndex] && mapLineup[playerIndex].name?.toLowerCase() === riotId.toLowerCase()) {
-            const mapRating = stats.mapRatings[map.id.toLowerCase()] || stats.overallRating;
-            if (mapRating) {
-              mapLineup[playerIndex].rendimento = mapRating;
-              if (stats.kd) mapLineup[playerIndex].kd = stats.kd;
-              if (stats.topAgents.length > 0) mapLineup[playerIndex].mostPlayed = [...stats.topAgents];
-              syncSavePlayer(map.id, playerIndex, mapLineup[playerIndex], state.lineups);
+      // 2. Atualiza em TODAS as escalações (lineups) de TODOS os mapas onde esta jogadora estiver
+      MAPS_DATA.forEach(map => {
+        const mapLineup = state.lineups[map.id];
+        if (mapLineup && Array.isArray(mapLineup)) {
+          mapLineup.forEach((p, pIdx) => {
+            if (p.name && p.name.toLowerCase().trim() === riotId.toLowerCase().trim()) {
+              const mapRating = stats.mapRatings[map.id.toLowerCase()] || stats.overallRating;
+              if (mapRating) p.rendimento = mapRating;
+              if (stats.kd) p.kd = stats.kd;
+              if (stats.topAgents.length > 0) p.mostPlayed = [...stats.topAgents];
+              syncSavePlayer(map.id, pIdx, p, state.lineups);
             }
-          }
-        });
+          });
+        }
+      });
 
-        upsertRosterPlayer({
-          name: riotId,
-          kd: currentPlayers[playerIndex].kd,
-          mostPlayed: currentPlayers[playerIndex].mostPlayed,
-          mapRatings: stats.mapRatings,
-          overallRating: stats.overallRating
-        });
+      saveCurrentState();
+      renderPlayersList();
 
-        saveCurrentState();
-        syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
-        renderPlayersList();
-        
-        const topStr = stats.topAgents.length > 0 ? ` (${stats.topAgents.join(', ')})` : '';
-        const rendStr = activeMapRating ? ` • Rend. ${state.activeMapId}: ${activeMapRating}/10` : '';
-        showToast(`⚡ API Riot: ${riotId} sincronizado (K/D ${currentPlayers[playerIndex].kd}${rendStr}${topStr})`, 'success');
-      }
+      const activeRating = stats.mapRatings[state.activeMapId.toLowerCase()] || stats.overallRating;
+      const topStr = stats.topAgents.length > 0 ? ` (${stats.topAgents.join(', ')})` : '';
+      const rendStr = activeRating ? ` • Rend. ${state.activeMapId}: ${activeRating}/10` : '';
+      showToast(`⚡ API Riot: ${riotId} sincronizado (K/D ${stats.kd || '1.0'}${rendStr}${topStr})`, 'success');
     }
   } catch (err) {
     console.warn('Erro na busca em segundo plano do Tracker:', err);
   }
 }
+
+window.autoFetchPlayerStatsInBackground = autoFetchPlayerStatsInBackground;
+window.scheduleBackgroundPlayerFetch = scheduleBackgroundPlayerFetch;
 
 // --------------------------------------------------------------------------
 // MODAL: BANCO DE JOGADORAS (ROSTER COMPLETO DA EQUIPE)
@@ -2205,6 +2283,15 @@ window.openTrackerModal = function(playerIndex) {
   const player = currentPlayers?.[playerIndex] || { name: '', kd: '', mostPlayed: [] };
 
   state.trackerModal.tempTopAgents = Array.isArray(player.mostPlayed) ? [...player.mostPlayed] : [];
+
+  const known = (state.roster || []).find(r => r.name.toLowerCase() === (player.name || '').toLowerCase());
+  if (known) {
+    state.trackerModal.tempMapRatings = known.mapRatings ? { ...known.mapRatings } : {};
+    state.trackerModal.tempOverallRating = known.overallRating || '';
+  } else {
+    state.trackerModal.tempMapRatings = {};
+    state.trackerModal.tempOverallRating = '';
+  }
 
   const titleEl = document.getElementById('tracker-modal-title');
   const subEl = document.getElementById('tracker-modal-sub');

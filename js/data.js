@@ -503,13 +503,32 @@ const DEFAULT_PLAYERS = [
 
 // Banco padrão de jogadoras cadastradas para Autocomplete rápido
 const DEFAULT_ROSTER = [
-  { name: 'c0rt3z#0303', kd: '1.01', mostPlayed: ['Killjoy', 'Cypher', 'Omen'], role: 'Sentinela' },
-  { name: 'Julia#BR1', kd: '1.25', mostPlayed: ['Sova', 'Fade', 'Gekko'], role: 'Iniciadora' },
-  { name: 'Bruna#BR1', kd: '1.10', mostPlayed: ['Omen', 'Astra', 'Viper'], role: 'Controladora' },
-  { name: 'Mari#BR1', kd: '1.05', mostPlayed: ['Killjoy', 'Cypher', 'Deadlock'], role: 'Sentinela' },
-  { name: 'Camila#BR1', kd: '1.12', mostPlayed: ['Raze', 'Jett', 'Neon'], role: 'Duelista' },
-  { name: 'Bia#BR1', kd: '1.08', mostPlayed: ['Skye', 'Breach', 'KAY/O'], role: 'Flex' },
-  { name: 'Carol#BR1', kd: '1.14', mostPlayed: ['Clove', 'Brimstone', 'Iso'], role: 'Flex' }
+  {
+    name: 'c0rt3z#0303',
+    kd: '1.09',
+    mostPlayed: ['Killjoy', 'Cypher', 'Omen'],
+    role: 'Sentinela',
+    overallRating: '7.5',
+    mapRatings: {
+      fracture: '10.0',
+      ascent: '9.0',
+      lotus: '8.3',
+      sunset: '6.9',
+      icebox: '5.4',
+      haven: '5.3',
+      breeze: '4.1',
+      split: '7.5',
+      bind: '7.5',
+      pearl: '7.5',
+      abyss: '7.5'
+    }
+  },
+  { name: 'Julia#BR1', kd: '1.25', mostPlayed: ['Sova', 'Fade', 'Gekko'], role: 'Iniciadora', overallRating: '8.1' },
+  { name: 'Bruna#BR1', kd: '1.10', mostPlayed: ['Omen', 'Astra', 'Viper'], role: 'Controladora', overallRating: '7.3' },
+  { name: 'Mari#BR1', kd: '1.05', mostPlayed: ['Killjoy', 'Cypher', 'Deadlock'], role: 'Sentinela', overallRating: '7.0' },
+  { name: 'Camila#BR1', kd: '1.12', mostPlayed: ['Raze', 'Jett', 'Neon'], role: 'Duelista', overallRating: '7.6' },
+  { name: 'Bia#BR1', kd: '1.08', mostPlayed: ['Skye', 'Breach', 'KAY/O'], role: 'Flex', overallRating: '7.2' },
+  { name: 'Carol#BR1', kd: '1.14', mostPlayed: ['Clove', 'Brimstone', 'Iso'], role: 'Flex', overallRating: '7.8' }
 ];
 
 // Compatibilidade Universal (Global Window)
