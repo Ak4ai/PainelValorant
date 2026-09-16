@@ -60,6 +60,48 @@
 
         <!-- Status de Conexão e Ações de Topo (Compacto no Mobile) -->
         <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+          <!-- Botão Seletor / Dropdown de Equipes -->
+          <div class="relative" id="team-selector-wrapper">
+            <button id="team-selector-btn" type="button" onclick="window.toggleTeamDropdown(event)" 
+                    title="Alternar equipe ou criar novo slot" 
+                    class="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[#14202d] hover:bg-[#1c2e42] border border-[#2b425b] hover:border-[#ff4655] text-white cursor-pointer transition shadow-sm flex-shrink-0 group">
+              <span class="text-xs sm:text-sm flex-shrink-0">🛡️</span>
+              <div class="text-left leading-tight hidden xs:block">
+                <span class="text-[8px] uppercase font-tactical text-amber-400/90 block leading-none">Equipe</span>
+                <span id="header-active-team-name" class="text-[11px] sm:text-xs font-tactical font-bold text-white max-w-[90px] sm:max-w-[140px] md:max-w-[170px] truncate block leading-tight">
+                  Equipe 1 - CEFETMG
+                </span>
+              </div>
+              <svg class="w-3 h-3 text-gray-400 group-hover:text-white transition-transform flex-shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            
+            <!-- Dropdown Menu de Equipes -->
+            <div id="team-dropdown-menu" class="hidden absolute right-0 top-full mt-2 w-72 sm:w-80 bg-[#0d141e] border border-[#233547] rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.85)] z-50 p-2.5 backdrop-blur-xl animate-fade-in flex flex-col gap-2">
+              <div class="flex items-center justify-between pb-1.5 border-b border-[#1b2b3d] px-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs">🛡️</span>
+                  <span class="text-xs font-tactical font-bold text-white uppercase tracking-wider">Slots de Equipe</span>
+                </div>
+                <span id="team-count-badge" class="px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">1</span>
+              </div>
+              
+              <!-- Lista de Equipes -->
+              <div id="team-list-container" class="flex flex-col gap-1.5 max-h-60 overflow-y-auto pr-0.5">
+                <!-- Injetado dinamicamente via JS -->
+              </div>
+              
+              <!-- Botão Novo Slot -->
+              <div class="pt-1.5 border-t border-[#1b2b3d]">
+                <button type="button" onclick="window.openCreateTeamModal()" class="w-full py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-tactical font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition shadow-[0_0_12px_rgba(16,185,129,0.3)] cursor-pointer">
+                  <span>➕</span>
+                  <span>Criar Novo Slot de Equipe</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Status Pill -->
           <button id="connection-status-pill" onclick="window.openFirebaseModal()" title="Clique para configurar o Firebase" class="inline-flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-xs font-semibold bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/60 cursor-pointer transition flex-shrink-0">
             <span id="connection-status-dot" class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
@@ -121,7 +163,7 @@
         </div>
         <div class="flex-1 min-w-0">
           <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block">Nome do Time / Campeonato</label>
-          <input id="team-name-input" type="text" value="Lineup Feminina Valorant" 
+          <input id="team-name-input" type="text" value="Equipe 1 - CEFETMG" 
                  class="w-full bg-transparent font-tactical text-xs sm:text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-[#ff4655] transition py-0.5 truncate" 
                  placeholder="Digite o nome da equipe...">
         </div>
@@ -970,9 +1012,121 @@
     <div id="toast-message" class="text-white font-medium">Notificação</div>
   </div>
 
+  <!-- MODAL: Criar Novo Slot de Equipe -->
+  <div id="team-create-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="tactical-card bg-[#0e1622] border border-[#273a4f] rounded-2xl w-full max-w-md mx-auto shadow-2xl animate-fade-in flex flex-col overflow-hidden">
+      
+      <!-- Cabeçalho -->
+      <div class="p-4 sm:p-5 border-b border-[#1b2b3d] bg-[#0a1018] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-base shadow flex-shrink-0">
+            ➕
+          </div>
+          <div>
+            <h3 class="text-base font-tactical font-black text-white tracking-wide">CRIAR NOVO SLOT DE EQUIPE</h3>
+            <p class="text-[10px] text-gray-400 font-sans">Cadastre uma nova equipe com escalações e elenco independentes</p>
+          </div>
+        </div>
+        <button type="button" onclick="window.closeCreateTeamModal()" class="text-gray-400 hover:text-white p-1 rounded transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Conteúdo do Formulário -->
+      <div class="p-4 sm:p-5 space-y-4">
+        <div>
+          <label class="text-[10px] uppercase font-tactical font-bold text-gray-300 block mb-1">Nome da Nova Equipe</label>
+          <input id="create-team-name-input" type="text" placeholder="Ex: Equipe 2 - CEFETMG" 
+                 class="w-full bg-[#121c27] border border-[#233547] focus:border-[#ff4655] rounded-xl px-3 py-2 text-sm text-white font-tactical font-bold placeholder-gray-500 focus:outline-none transition">
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase font-tactical font-bold text-gray-300 block mb-1.5">Estrutura Inicial de Escalação</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label class="tactical-card p-3 rounded-xl border border-[#25394e] hover:border-emerald-400 cursor-pointer flex items-start gap-2.5 bg-[#101924] transition">
+              <input type="radio" name="team-init-mode" value="clean" checked class="accent-emerald-500 mt-1">
+              <div>
+                <span class="text-xs font-tactical font-bold text-white block">Equipe Limpa</span>
+                <span class="text-[10px] text-gray-400 block leading-tight mt-0.5">Slots padrão em branco prontos para novas jogadoras e agentes.</span>
+              </div>
+            </label>
+            <label class="tactical-card p-3 rounded-xl border border-[#25394e] hover:border-amber-400 cursor-pointer flex items-start gap-2.5 bg-[#101924] transition">
+              <input type="radio" name="team-init-mode" value="clone" class="accent-amber-500 mt-1">
+              <div>
+                <span class="text-xs font-tactical font-bold text-white block">Clonar Equipe Atual</span>
+                <span class="text-[10px] text-gray-400 block leading-tight mt-0.5">Copia a escalação e elenco da equipe atual para modificações.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rodapé -->
+      <div class="p-4 border-t border-[#1b2b3d] bg-[#090f17] flex items-center justify-end gap-2">
+        <button type="button" onclick="window.closeCreateTeamModal()" class="px-3.5 py-1.5 rounded-xl border border-[#233547] text-gray-300 hover:text-white text-xs font-bold transition">
+          Cancelar
+        </button>
+        <button type="button" onclick="window.submitCreateTeam()" class="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-tactical font-black text-xs uppercase tracking-wider transition shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+          Confirmar e Criar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: Renomear Equipe -->
+  <div id="team-rename-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="tactical-card bg-[#0e1622] border border-[#273a4f] rounded-2xl w-full max-w-sm mx-auto shadow-2xl animate-fade-in flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-[#1b2b3d] bg-[#0a1018] flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">✏️</span>
+          <h3 class="text-sm sm:text-base font-tactical font-black text-white tracking-wide">RENOMEAR EQUIPE</h3>
+        </div>
+        <button type="button" onclick="window.closeRenameTeamModal()" class="text-gray-400 hover:text-white p-1 rounded transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-4 space-y-3">
+        <label class="text-[10px] uppercase font-tactical font-bold text-gray-300 block">Novo Nome</label>
+        <input id="rename-team-name-input" type="text" 
+               class="w-full bg-[#121c27] border border-[#233547] focus:border-[#ff4655] rounded-xl px-3 py-2 text-sm text-white font-tactical font-bold placeholder-gray-500 focus:outline-none transition">
+      </div>
+      <div class="p-3.5 border-t border-[#1b2b3d] bg-[#090f17] flex items-center justify-end gap-2">
+        <button type="button" onclick="window.closeRenameTeamModal()" class="px-3 py-1.5 rounded-xl border border-[#233547] text-gray-300 hover:text-white text-xs font-bold transition">
+          Cancelar
+        </button>
+        <button type="button" onclick="window.submitRenameTeam()" class="px-4 py-1.5 rounded-xl bg-[#ff4655] hover:bg-[#e03b49] text-white font-tactical font-black text-xs uppercase tracking-wider transition shadow-[0_0_12px_rgba(255,70,85,0.4)]">
+          Salvar Nome
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Confirmar Exclusão de Equipe -->
+  <div id="team-delete-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="tactical-card bg-[#120a0d] border border-red-500/40 rounded-2xl w-full max-w-sm mx-auto shadow-2xl animate-fade-in flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-red-500/30 bg-red-950/40 flex items-center gap-2">
+        <span class="text-base text-red-400">⚠️</span>
+        <h3 class="text-sm sm:text-base font-tactical font-black text-white tracking-wide">EXCLUIR EQUIPE</h3>
+      </div>
+      <div class="p-4 text-xs text-gray-300 leading-relaxed">
+        Tem certeza que deseja excluir o slot da equipe <b id="delete-team-name-label" class="text-amber-300"></b>?<br>
+        <span class="text-red-400/90 text-[11px] block mt-1">Essa ação apagará permanentemente as escalações deste time.</span>
+      </div>
+      <div class="p-3.5 border-t border-red-500/30 bg-[#0c0608] flex items-center justify-end gap-2">
+        <button type="button" onclick="window.closeDeleteTeamModal()" class="px-3 py-1.5 rounded-xl border border-[#332228] text-gray-300 hover:text-white text-xs font-bold transition">
+          Cancelar
+        </button>
+        <button type="button" onclick="window.executeDeleteTeam()" class="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-tactical font-black text-xs uppercase tracking-wider transition shadow">
+          Sim, Excluir
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- App Scripts (Universal: funciona tanto via duplo-clique quanto via servidor web) -->
-  <script src="js/data.js?v=1.0.5"></script>
-  <script src="js/firebase-config.js?v=1.0.5"></script>
-  <script src="js/app.js?v=1.0.5"></script>
+  <script src="js/data.js?v=1.0.6"></script>
+  <script src="js/firebase-config.js?v=1.0.6"></script>
+  <script src="js/app.js?v=1.0.6"></script>
 </body>
 </html>

@@ -164,6 +164,8 @@ function syncSavePlayer(mapId, playerIndex, playerData, allState) {
   if (dbInstance && isConnectedToFirebase) {
     try {
       dbInstance.ref(`valorant_panel/lineups/${mapId}/${playerIndex}`).update(playerData);
+      const activeTeamId = (window.state && window.state.activeTeamId) || 'team_1';
+      dbInstance.ref(`valorant_panel/teamsData/${activeTeamId}/lineups/${mapId}/${playerIndex}`).update(playerData);
     } catch (e) {
       console.error('Erro ao atualizar jogador no Firebase:', e);
     }
@@ -187,7 +189,7 @@ function saveLocalData(data) {
 }
 
 function getSavedTeamName() {
-  return localStorage.getItem(STORAGE_KEY_TEAM) || 'Lineup Feminina Valorant';
+  return localStorage.getItem(STORAGE_KEY_TEAM) || 'Equipe 1 - CEFETMG';
 }
 
 function saveTeamName(name) {
@@ -195,6 +197,8 @@ function saveTeamName(name) {
   if (dbInstance && isConnectedToFirebase) {
     try {
       dbInstance.ref('valorant_panel/meta/teamName').set(name);
+      const activeTeamId = (window.state && window.state.activeTeamId) || 'team_1';
+      dbInstance.ref(`valorant_panel/teamsData/${activeTeamId}/meta/teamName`).set(name);
     } catch (e) {}
   }
 }

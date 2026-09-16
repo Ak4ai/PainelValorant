@@ -20,6 +20,12 @@ const state = {
   currentMainView: 'lineup', // 'lineup' ou 'analytics'
   mapPoolFilter: 'meta', // 'meta' (Pool Campeonato), 'bench' (Fora do Meta), 'all' (Todos)
   teamName: getSavedTeamName(),
+  teams: [], // Lista de slots de equipe: [ { id: 'team_1', name: 'Equipe 1 - CEFETMG', createdAt }, ... ]
+  activeTeamId: 'team_1',
+  teamsData: {}, // [teamId]: { meta: { teamName, roster }, lineups: { ascent: [...] } }
+  teamModalState: {
+    targetTeamId: null
+  },
   lineups: {}, // Estrutura: { ascent: [ {id, name, titular, reserva}, ... ], haven: [...] }
   roster: [], // Banco de jogadoras cadastradas para Autocomplete rápido
   activeModal: {
@@ -251,26 +257,541 @@ function initializeDefaultLineups() {
   syncAllLineupsFromRoster();
 }
 
+// --------------------------------------------------------------------------
+// SISTEMA DE GESTÃO DE MÚLTIPLAS EQUIPES (SLOTS DE EQUIPE)
+// --------------------------------------------------------------------------
+
+function saveLocalTeams(teams, activeTeamId, teamsData) {
+  try {
+    localStorage.setItem('valorant_panel_teams', JSON.stringify(teams));
+    localStorage.setItem('valorant_panel_active_team', activeTeamId);
+    localStorage.setItem('valorant_panel_teams_data', JSON.stringify(teamsData));
+  } catch (e) {
+    console.warn('Erro ao salvar equipes no LocalStorage:', e);
+  }
+}
+
+function initializeTeamsState() {
+  const localData = getLocalData();
+  const savedTeams = localStorage.getItem('valorant_panel_teams');
+  const savedActiveTeamId = localStorage.getItem('valorant_panel_active_team');
+  const savedTeamsData = localStorage.getItem('valorant_panel_teams_data');
+
+  let parsedTeams = null;
+  let parsedActiveTeamId = null;
+  let parsedTeamsData = null;
+
+  try {
+    if (savedTeams) parsedTeams = JSON.parse(savedTeams);
+    if (savedTeamsData) parsedTeamsData = JSON.parse(savedTeamsData);
+    if (savedActiveTeamId) parsedActiveTeamId = savedActiveTeamId;
+  } catch (e) {}
+
+  if (localData && Array.isArray(localData.teams) && localData.teams.length > 0) {
+    parsedTeams = localData.teams;
+    parsedTeamsData = localData.teamsData || {};
+    if (localData.activeTeamId) parsedActiveTeamId = localData.activeTeamId;
+  }
+
+  if (parsedTeams && Array.isArray(parsedTeams) && parsedTeams.length > 0) {
+    state.teams = parsedTeams;
+    state.activeTeamId = parsedActiveTeamId && parsedTeams.some(t => t.id === parsedActiveTeamId)
+      ? parsedActiveTeamId
+      : parsedTeams[0].id;
+    state.teamsData = parsedTeamsData || {};
+
+    // Carrega dados da equipe ativa
+    const activeData = state.teamsData[state.activeTeamId];
+    if (activeData) {
+      if (activeData.meta?.teamName) state.teamName = activeData.meta.teamName;
+      if (Array.isArray(activeData.meta?.roster)) state.roster = activeData.meta.roster;
+      if (activeData.lineups) state.lineups = activeData.lineups;
+    }
+  } else {
+    // MIGRAÇÃO INICIAL: Preserva a equipe atual existente como "Equipe 1 - CEFETMG"
+    const currentName = (localData?.meta?.teamName && localData.meta.teamName !== 'Lineup Feminina Valorant')
+      ? localData.meta.teamName
+      : 'Equipe 1 - CEFETMG';
+
+    const defaultTeam = {
+      id: 'team_1',
+      name: currentName,
+      createdAt: new Date().toISOString()
+    };
+
+    state.teams = [defaultTeam];
+    state.activeTeamId = 'team_1';
+    state.teamName = currentName;
+
+    state.teamsData = {
+      team_1: {
+        meta: {
+          teamName: currentName,
+          roster: state.roster,
+          lastUpdated: new Date().toISOString()
+        },
+        lineups: state.lineups
+      }
+    };
+  }
+
+  if (!state.teamsData[state.activeTeamId]) {
+    state.teamsData[state.activeTeamId] = {
+      meta: {
+        teamName: state.teamName,
+        roster: state.roster,
+        lastUpdated: new Date().toISOString()
+      },
+      lineups: state.lineups
+    };
+  }
+
+  saveLocalTeams(state.teams, state.activeTeamId, state.teamsData);
+  renderTeamSelectorUI();
+}
+
+function renderTeamSelectorUI() {
+  const headerNameEl = document.getElementById('header-active-team-name');
+  if (headerNameEl) {
+    headerNameEl.textContent = state.teamName || 'Equipe 1 - CEFETMG';
+    headerNameEl.title = state.teamName || 'Equipe 1 - CEFETMG';
+  }
+
+  const badgeEl = document.getElementById('team-count-badge');
+  if (badgeEl) {
+    badgeEl.textContent = `${state.teams.length}`;
+  }
+
+  const listContainer = document.getElementById('team-list-container');
+  if (!listContainer) return;
+
+  listContainer.innerHTML = state.teams.map((team, idx) => {
+    const isActive = team.id === state.activeTeamId;
+    const teamData = state.teamsData?.[team.id];
+    const rosterCount = Array.isArray(teamData?.meta?.roster) 
+      ? teamData.meta.roster.length 
+      : (isActive ? (state.roster?.length || 0) : 0);
+
+    return `
+      <div class="p-2 sm:p-2.5 rounded-xl border transition-all ${
+        isActive 
+          ? 'bg-[#152332] border-[#ff4655] shadow-[0_0_12px_rgba(255,70,85,0.25)]' 
+          : 'bg-[#101823] border-[#1d2e40] hover:border-sky-400/60 hover:bg-[#131e2c]'
+      } flex items-center justify-between gap-2 group">
+        
+        <button type="button" onclick="window.switchTeam('${team.id}')" class="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer">
+          <div class="w-7 h-7 rounded-lg ${isActive ? 'bg-[#ff4655] text-white' : 'bg-[#172535] text-gray-400 group-hover:text-white'} flex items-center justify-center font-tactical font-black text-xs shadow-inner flex-shrink-0">
+            ${idx + 1}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="font-tactical font-bold text-xs sm:text-sm text-white truncate max-w-[140px] sm:max-w-[160px] block">
+                ${escapeHtml(team.name)}
+              </span>
+              ${isActive ? '<span class="px-1.5 py-0.2 rounded text-[8px] font-tactical font-black uppercase tracking-wider bg-[#ff4655]/20 text-[#ff4655] border border-[#ff4655]/40 leading-none">Ativa</span>' : ''}
+            </div>
+            <span class="text-[9px] text-gray-400 font-mono block leading-none mt-0.5">
+              ${rosterCount} jogadora${rosterCount === 1 ? '' : 's'} no elenco
+            </span>
+          </div>
+        </button>
+
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <button type="button" onclick="window.openRenameTeamModal('${team.id}')" title="Renomear equipe" class="p-1 rounded text-gray-400 hover:text-amber-300 hover:bg-[#1a2b3d] transition cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+          </button>
+          ${state.teams.length > 1 ? `
+            <button type="button" onclick="window.confirmDeleteTeam('${team.id}')" title="Excluir equipe" class="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-950/40 transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          ` : ''}
+        </div>
+
+      </div>
+    `;
+  }).join('');
+}
+
+window.toggleTeamDropdown = function(event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById('team-dropdown-menu');
+  if (!menu) return;
+  const isHidden = menu.classList.contains('hidden');
+  if (isHidden) {
+    renderTeamSelectorUI();
+    menu.classList.remove('hidden');
+  } else {
+    menu.classList.add('hidden');
+  }
+};
+
+window.closeTeamDropdown = function() {
+  const menu = document.getElementById('team-dropdown-menu');
+  if (menu) menu.classList.add('hidden');
+};
+
+window.switchTeam = function(teamId) {
+  if (state.activeTeamId === teamId) {
+    window.closeTeamDropdown();
+    return;
+  }
+
+  // 1. Salva a equipe atual antes de mudar
+  if (state.activeTeamId) {
+    if (!state.teamsData) state.teamsData = {};
+    state.teamsData[state.activeTeamId] = {
+      meta: {
+        teamName: state.teamName,
+        roster: state.roster,
+        lastUpdated: new Date().toISOString()
+      },
+      lineups: JSON.parse(JSON.stringify(state.lineups))
+    };
+  }
+
+  const targetTeam = (state.teams || []).find(t => t.id === teamId);
+  if (!targetTeam) return;
+
+  state.activeTeamId = teamId;
+  state.teamName = targetTeam.name;
+
+  // 2. Carrega dados da equipe selecionada
+  const targetData = state.teamsData?.[teamId];
+  if (targetData && targetData.lineups) {
+    state.lineups = JSON.parse(JSON.stringify(targetData.lineups));
+    state.roster = Array.isArray(targetData.meta?.roster) ? JSON.parse(JSON.stringify(targetData.meta.roster)) : [];
+  } else {
+    state.lineups = {};
+    MAPS_DATA.forEach(map => {
+      state.lineups[map.id] = DEFAULT_PLAYERS.map(p => ({ ...p, mostPlayed: [...(p.mostPlayed || [])] }));
+    });
+    state.roster = Array.isArray(DEFAULT_ROSTER) ? JSON.parse(JSON.stringify(DEFAULT_ROSTER)) : [];
+  }
+
+  ensureRosterDefaults();
+
+  // Garante 9 slots em cada mapa
+  MAPS_DATA.forEach(map => {
+    if (!state.lineups[map.id]) {
+      state.lineups[map.id] = DEFAULT_PLAYERS.map(p => ({ ...p, mostPlayed: [...(p.mostPlayed || [])] }));
+    } else {
+      while (state.lineups[map.id].length < 9) {
+        const subId = state.lineups[map.id].length + 1;
+        state.lineups[map.id].push({
+          id: subId,
+          name: `Reserva ${subId - 5}`,
+          isSub: true,
+          flex1: '',
+          flex2: '',
+          flex3: '',
+          kd: '',
+          rendimento: '',
+          mostPlayed: []
+        });
+      }
+    }
+  });
+
+  // 3. Atualiza UI e sincronização
+  window.closeTeamDropdown();
+  renderTeamSelectorUI();
+  setupTeamNameInput();
+  renderMapTabs();
+  renderActiveMap();
+
+  if (state.currentMainView === 'analytics' && typeof window.renderTeamAnalyticsView === 'function') {
+    window.renderTeamAnalyticsView();
+  }
+
+  saveCurrentState();
+  saveTeamName(state.teamName);
+  showToast(`Equipe alterada para: ${state.teamName}`, 'success');
+};
+
+window.openCreateTeamModal = function() {
+  window.closeTeamDropdown();
+  const modal = document.getElementById('team-create-modal');
+  const input = document.getElementById('create-team-name-input');
+  if (input) {
+    input.value = `Equipe ${state.teams.length + 1}`;
+  }
+  const cleanRadio = document.querySelector('input[name="team-init-mode"][value="clean"]');
+  if (cleanRadio) cleanRadio.checked = true;
+
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (input) {
+      setTimeout(() => { input.focus(); input.select(); }, 50);
+    }
+  }
+};
+
+window.closeCreateTeamModal = function() {
+  const modal = document.getElementById('team-create-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.submitCreateTeam = function() {
+  const input = document.getElementById('create-team-name-input');
+  const rawName = (input ? input.value : '').trim();
+  const cleanName = rawName || `Equipe ${state.teams.length + 1}`;
+
+  const modeRadio = document.querySelector('input[name="team-init-mode"]:checked');
+  const cloneFromCurrent = modeRadio ? modeRadio.value === 'clone' : false;
+
+  const newTeamId = 'team_' + Date.now();
+
+  // 1. Salva a equipe atual antes de mudar
+  if (state.activeTeamId) {
+    if (!state.teamsData) state.teamsData = {};
+    state.teamsData[state.activeTeamId] = {
+      meta: {
+        teamName: state.teamName,
+        roster: state.roster,
+        lastUpdated: new Date().toISOString()
+      },
+      lineups: JSON.parse(JSON.stringify(state.lineups))
+    };
+  }
+
+  let newLineups = {};
+  let newRoster = [];
+
+  if (cloneFromCurrent) {
+    newLineups = JSON.parse(JSON.stringify(state.lineups));
+    newRoster = JSON.parse(JSON.stringify(state.roster));
+  } else {
+    MAPS_DATA.forEach(map => {
+      newLineups[map.id] = DEFAULT_PLAYERS.map(p => ({ ...p, mostPlayed: [...(p.mostPlayed || [])] }));
+    });
+    newRoster = Array.isArray(DEFAULT_ROSTER) ? JSON.parse(JSON.stringify(DEFAULT_ROSTER)) : [];
+  }
+
+  const newTeamObj = {
+    id: newTeamId,
+    name: cleanName,
+    createdAt: new Date().toISOString()
+  };
+
+  state.teams.push(newTeamObj);
+  if (!state.teamsData) state.teamsData = {};
+  state.teamsData[newTeamId] = {
+    meta: {
+      teamName: cleanName,
+      roster: newRoster,
+      lastUpdated: new Date().toISOString()
+    },
+    lineups: newLineups
+  };
+
+  // Ativa a nova equipe
+  state.activeTeamId = newTeamId;
+  state.teamName = cleanName;
+  state.lineups = newLineups;
+  state.roster = newRoster;
+
+  ensureRosterDefaults();
+  window.closeCreateTeamModal();
+  renderTeamSelectorUI();
+  setupTeamNameInput();
+  renderMapTabs();
+  renderActiveMap();
+
+  if (state.currentMainView === 'analytics' && typeof window.renderTeamAnalyticsView === 'function') {
+    window.renderTeamAnalyticsView();
+  }
+
+  saveCurrentState();
+  saveTeamName(state.teamName);
+  showToast(`Nova equipe criada: ${cleanName}!`, 'success');
+};
+
+window.openRenameTeamModal = function(teamId) {
+  window.closeTeamDropdown();
+  state.teamModalState.targetTeamId = teamId;
+  const target = (state.teams || []).find(t => t.id === teamId);
+  if (!target) return;
+
+  const modal = document.getElementById('team-rename-modal');
+  const input = document.getElementById('rename-team-name-input');
+  if (input) {
+    input.value = target.name;
+  }
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (input) {
+      setTimeout(() => { input.focus(); input.select(); }, 50);
+    }
+  }
+};
+
+window.closeRenameTeamModal = function() {
+  const modal = document.getElementById('team-rename-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+  state.teamModalState.targetTeamId = null;
+};
+
+window.submitRenameTeam = function() {
+  const teamId = state.teamModalState.targetTeamId;
+  if (!teamId) return;
+
+  const input = document.getElementById('rename-team-name-input');
+  const newName = (input ? input.value : '').trim();
+  if (!newName) {
+    showToast('Informe um nome válido para a equipe.', 'warning');
+    return;
+  }
+
+  const target = (state.teams || []).find(t => t.id === teamId);
+  if (target) {
+    target.name = newName;
+  }
+  if (state.teamsData?.[teamId]?.meta) {
+    state.teamsData[teamId].meta.teamName = newName;
+  }
+  if (state.activeTeamId === teamId) {
+    state.teamName = newName;
+    const teamInput = document.getElementById('team-name-input');
+    if (teamInput) teamInput.value = newName;
+    saveTeamName(newName);
+  }
+
+  window.closeRenameTeamModal();
+  renderTeamSelectorUI();
+  saveCurrentState();
+  showToast(`Equipe renomeada para: ${newName}`, 'success');
+};
+
+window.confirmDeleteTeam = function(teamId) {
+  window.closeTeamDropdown();
+  if (state.teams.length <= 1) {
+    showToast('Não é possível excluir a única equipe cadastrada.', 'warning');
+    return;
+  }
+  const target = (state.teams || []).find(t => t.id === teamId);
+  if (!target) return;
+
+  state.teamModalState.targetTeamId = teamId;
+  const modal = document.getElementById('team-delete-modal');
+  const label = document.getElementById('delete-team-name-label');
+  if (label) label.textContent = `"${target.name}"`;
+
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+};
+
+window.closeDeleteTeamModal = function() {
+  const modal = document.getElementById('team-delete-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+  state.teamModalState.targetTeamId = null;
+};
+
+window.executeDeleteTeam = function() {
+  const teamId = state.teamModalState.targetTeamId;
+  if (!teamId) return;
+
+  if (state.teams.length <= 1) {
+    showToast('Não é possível excluir a única equipe cadastrada.', 'warning');
+    window.closeDeleteTeamModal();
+    return;
+  }
+
+  const teamIdx = state.teams.findIndex(t => t.id === teamId);
+  if (teamIdx === -1) return;
+
+  const deletedName = state.teams[teamIdx].name;
+  state.teams.splice(teamIdx, 1);
+  if (state.teamsData) {
+    delete state.teamsData[teamId];
+  }
+
+  window.closeDeleteTeamModal();
+
+  if (state.activeTeamId === teamId) {
+    const nextTeam = state.teams[0];
+    window.switchTeam(nextTeam.id);
+  } else {
+    renderTeamSelectorUI();
+    saveCurrentState();
+  }
+
+  showToast(`Equipe "${deletedName}" excluída com sucesso.`, 'info');
+};
+
 // Inicialização Principal
 document.addEventListener('DOMContentLoaded', () => {
   initializeDefaultLineups();
+  initializeTeamsState();
   setupTeamNameInput();
   renderMapTabs();
   renderActiveMap();
   setupAgentModalFilters();
 
-  // Fecha dropdowns de autocomplete ao clicar fora
+  // Fecha dropdowns de autocomplete e equipe ao clicar fora
   document.addEventListener('click', (e) => {
     if (!e.target.closest('[id^="player-name-wrapper-"]')) {
       document.querySelectorAll('[id^="roster-autocomplete-dropdown-"]').forEach(el => {
         el.classList.add('hidden');
       });
     }
+    if (!e.target.closest('#team-selector-wrapper')) {
+      const teamMenu = document.getElementById('team-dropdown-menu');
+      if (teamMenu) teamMenu.classList.add('hidden');
+    }
   });
 
   // Inicia conexão em tempo real com Firebase ou LocalStorage
   initRealtimeSync((remoteData, source) => {
     if (!remoteData) return;
+
+    // Se o dado remoto tiver a estrutura de múltiplos times
+    if (remoteData.teams && Array.isArray(remoteData.teams) && remoteData.teams.length > 0) {
+      state.teams = remoteData.teams;
+      if (remoteData.teamsData) {
+        state.teamsData = remoteData.teamsData;
+      }
+
+      // Se a equipe ativa local existir na nuvem, carrega seus dados mais recentes
+      if (state.teams.some(t => t.id === state.activeTeamId)) {
+        const currentData = state.teamsData?.[state.activeTeamId];
+        if (currentData) {
+          if (currentData.meta?.teamName) state.teamName = currentData.meta.teamName;
+          if (Array.isArray(currentData.meta?.roster)) state.roster = currentData.meta.roster;
+          if (currentData.lineups) state.lineups = currentData.lineups;
+        }
+      } else {
+        // Se a equipe ativa local não existir, seleciona a equipe remota ativa ou a primeira
+        state.activeTeamId = remoteData.activeTeamId || state.teams[0].id;
+        const currentData = state.teamsData?.[state.activeTeamId];
+        if (currentData) {
+          if (currentData.meta?.teamName) state.teamName = currentData.meta.teamName;
+          if (Array.isArray(currentData.meta?.roster)) state.roster = currentData.meta.roster;
+          if (currentData.lineups) state.lineups = currentData.lineups;
+        }
+      }
+
+      ensureRosterDefaults();
+      renderTeamSelectorUI();
+      setupTeamNameInput();
+      renderPlayersList();
+      if (source === 'firebase') {
+        showToast('Equipes sincronizadas com a nuvem!', 'success');
+      }
+      return;
+    }
 
     if (remoteData.meta) {
       if (remoteData.meta.teamName) {
@@ -342,10 +863,21 @@ function setupTeamNameInput() {
   if (!teamInput) return;
 
   teamInput.value = state.teamName;
-  teamInput.addEventListener('input', (e) => {
+  teamInput.oninput = (e) => {
     state.teamName = e.target.value;
+    const currentTeam = (state.teams || []).find(t => t.id === state.activeTeamId);
+    if (currentTeam) {
+      currentTeam.name = state.teamName;
+    }
+    const headerTitle = document.getElementById('header-active-team-name');
+    if (headerTitle) {
+      headerTitle.textContent = state.teamName;
+      headerTitle.title = state.teamName;
+    }
+    renderTeamSelectorUI();
     saveTeamName(state.teamName);
-  });
+    saveCurrentState();
+  };
 }
 
 // Retorna os mapas de acordo com o filtro ativo
@@ -5902,7 +6434,27 @@ function setupAgentModalFilters() {
 }
 // Salva todo o estado da aplicação
 function saveCurrentState() {
+  if (state.activeTeamId) {
+    if (!state.teamsData) state.teamsData = {};
+    state.teamsData[state.activeTeamId] = {
+      meta: {
+        teamName: state.teamName,
+        roster: state.roster,
+        lastUpdated: new Date().toISOString()
+      },
+      lineups: state.lineups
+    };
+
+    const currentTeam = (state.teams || []).find(t => t.id === state.activeTeamId);
+    if (currentTeam && currentTeam.name !== state.teamName) {
+      currentTeam.name = state.teamName;
+    }
+  }
+
   const fullPayload = {
+    teams: state.teams,
+    activeTeamId: state.activeTeamId,
+    teamsData: state.teamsData,
     meta: {
       teamName: state.teamName,
       roster: state.roster,
@@ -5910,7 +6462,9 @@ function saveCurrentState() {
     },
     lineups: state.lineups
   };
+
   syncSaveData(fullPayload);
+  saveLocalTeams(state.teams, state.activeTeamId, state.teamsData);
 }
 
 // --------------------------------------------------------------------------
