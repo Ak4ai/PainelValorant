@@ -805,8 +805,61 @@ window.executeManualSwap = function(targetIndex) {
   showToast(`Posição trocada entre ${labelSrc} e ${labelTgt} com sucesso!`, 'success');
 };
 
-// 1. Organiza por pontuação: APENAS reordena as jogadoras do maior para o menor rendimento (mantendo os agentes)
-// Não considera Reserva 3 e 4 que não têm jogadora cadastrada
+// Verifica se uma vaga possui uma jogadora real efetivamente escalada
+function hasScaledPlayer(player) {
+  if (!player) return false;
+  const rawName = (player.name || '').trim();
+  if (!rawName) return false;
+
+  // Se possui TAG do Riot ID (ex: c0rt3z#0303, Julia#BR1, Bruna#BR1), é jogadora escalada
+  if (rawName.includes('#')) return true;
+
+  const lower = rawName.toLowerCase();
+  const isGeneric = lower.startsWith('reserva ') || 
+                    lower.startsWith('player ') || 
+                    lower === 'reserva' || 
+                    lower === 'player' ||
+                    lower === 'reserva 1' || 
+                    lower === 'reserva 2' || 
+                    lower === 'reserva 3' || 
+                    lower === 'reserva 4' ||
+                    lower === 'player 1' ||
+                    lower === 'player 2' ||
+                    lower === 'player 3' ||
+                    lower === 'player 4' ||
+                    lower === 'player 5';
+
+  if (isGeneric) {
+    // Se for nome genérico, só conta como escalada se tiver agente titular explicitamente definido
+    // ou flex configurado e dados reais de K/D
+    const hasAgent = (player.titular && player.titular.trim() !== '') || 
+                     (player.flex1 && player.flex1.trim() !== '');
+    const hasCustomStats = (player.kd && player.kd.trim() !== '' && player.kd !== '1.00') ||
+                           (player.rendimento && player.rendimento.trim() !== '' && player.rendimento !== '7.0');
+    return Boolean(hasAgent && hasCustomStats);
+  }
+
+  // Nome customizado diferente dos placeholders genéricos
+  const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === lower);
+  if (inRoster) return true;
+
+  return true;
+}
+
+// Extrai nota de rendimento e K/D para ordenação
+function getPlayerNumericScore(p, mapId) {
+  const cleanName = (p.name || '').trim();
+  const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
+  const scoreStr = p.rendimento || inRoster.mapRatings?.[mapId.toLowerCase()] || inRoster.overallRating || '';
+  let num = parseFloat(String(scoreStr).replace(',', '.'));
+  if (isNaN(num)) num = 0;
+  if (num > 10 && num <= 100) num = num / 10;
+  const kdNum = parseFloat(String(p.kd || inRoster.kd || '0').replace(',', '.')) || 0;
+  return { score: num, kd: kdNum };
+}
+
+// 1. Organiza por pontuação: Reordena APENAS as jogadoras escaladas (mantendo os agentes)
+// R1 e R2 (e demais vagas sem ninguém escalado) ficam no final e NÃO são escaladas nem organizadas
 window.autoScaleLineupByRating = function() {
   const currentMapId = state.activeMapId;
   const currentPlayers = state.lineups[currentMapId];
@@ -815,66 +868,64 @@ window.autoScaleLineupByRating = function() {
     return;
   }
 
-  // Considera APENAS as 7 vagas ativas (5 Titulares + 2 Reservas Principais). Reserva 3 e 4 nunca entram na disputa!
-  const activePool = currentPlayers.slice(0, 7).map((p, origIdx) => {
-    const cleanName = (p.name || '').trim();
-    const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
-    const scoreStr = p.rendimento || inRoster.mapRatings?.[currentMapId.toLowerCase()] || inRoster.overallRating || '';
-    let numericScore = parseFloat(String(scoreStr).replace(',', '.'));
-    if (isNaN(numericScore)) numericScore = 0;
-    if (numericScore > 10 && numericScore <= 100) numericScore = numericScore / 10;
-    const kdNum = parseFloat(String(p.kd || inRoster.kd || '0').replace(',', '.')) || 0;
+  // Separa as jogadoras que possuem alguém escalado das vagas reservas vazias (R1, R2, etc.)
+  const scaledPool = [];
+  const unscaledPool = [];
 
-    return {
-      player: { ...p },
-      score: numericScore,
-      kd: kdNum,
-      origIdx
-    };
-  });
-
-  // Ordena decrescente: maior rendimento primeiro; desempate pelo K/D
-  activePool.sort((a, b) => {
-    if (b.score !== a.score) {
-      return b.score - a.score;
+  currentPlayers.forEach((p, idx) => {
+    // Se for dos 5 titulares originais OU tiver jogadora real escalada
+    if (idx < 5 || hasScaledPlayer(p)) {
+      scaledPool.push({ ...p, origIdx: idx });
+    } else {
+      unscaledPool.push({ ...p, origIdx: idx });
     }
-    return b.kd - a.kd;
   });
 
-  // Reordena as jogadoras preservando 100% seus agentes escolhidos (sem forçar novos agentes)
-  const reorderedActive = activePool.map((item, newIdx) => {
-    const p = item.player;
-    p.id = newIdx + 1;
+  // Ordena APENAS as jogadoras escaladas por rendimento decrescente (desempate por K/D)
+  scaledPool.sort((a, b) => {
+    const aM = getPlayerNumericScore(a, currentMapId);
+    const bM = getPlayerNumericScore(b, currentMapId);
+    if (bM.score !== aM.score) return bM.score - aM.score;
+    return bM.kd - aM.kd;
+  });
 
-    // Se uma jogadora foi promovida de reserva para titular e não tinha titular configurado, aproveita o flex1
+  // As jogadoras escaladas ocupam as posições ativas
+  const reorderedActive = scaledPool.map((p, newIdx) => {
+    p.id = newIdx + 1;
     if (newIdx < 5) {
+      p.isSub = false;
       if (!p.titular && p.flex1) p.titular = p.flex1;
       if (!p.reserva && p.flex2) p.reserva = p.flex2;
     } else {
-      // Se uma titular foi para a reserva e não tinha flex configurado, aproveita o titular/reserva
+      p.isSub = true;
       if (!p.flex1 && p.titular) p.flex1 = p.titular;
       if (!p.flex2 && p.reserva) p.flex2 = p.reserva;
     }
     return p;
   });
 
-  // Preserva intactas as vagas extras (Reserva 3 e 4) nos índices 7 e 8
-  const extraSlots = currentPlayers.slice(7);
-  const newPlayers = [...reorderedActive, ...extraSlots];
+  // As vagas sem ninguém escalado (R1, R2, etc.) FICAM ESTREITAMENTE NO FINAL e não são alteradas
+  const reorderedUnscaled = unscaledPool.map((p, uIdx) => {
+    p.id = reorderedActive.length + uIdx + 1;
+    p.isSub = true;
+    return p;
+  });
 
-  state.lineups[currentMapId] = newPlayers;
+  const finalLineup = [...reorderedActive, ...reorderedUnscaled];
+
+  state.lineups[currentMapId] = finalLineup;
   saveCurrentState();
 
-  newPlayers.forEach((p, idx) => {
+  finalLineup.forEach((p, idx) => {
     syncSavePlayer(currentMapId, idx, p, state.lineups);
   });
 
   renderPlayersList();
-  showToast('🏆 Jogadoras organizadas da maior para a menor pontuação! Agentes mantidos.', 'success');
+  showToast('🏆 Jogadoras organizadas da maior para a menor pontuação! R1 e R2 mantidos no final.', 'success');
 };
 
 // 2. Organizar e Escalar: Reordena as jogadoras por pontuação E escala os melhores agentes recomendados da comp meta
-// (Não considera Reserva 3 e 4 que não têm jogadoras)
+// R1 e R2 (e demais vagas sem ninguém escalado) ficam no final e NÃO são escaladas nem organizadas
 window.autoOrganizeAndAssignComps = function() {
   const currentMapId = state.activeMapId;
   const currentPlayers = state.lineups[currentMapId];
@@ -883,41 +934,36 @@ window.autoOrganizeAndAssignComps = function() {
     return;
   }
 
-  // Considera APENAS as 7 jogadoras ativas (5 Titulares + 2 Reservas Principais)
-  const activePool = currentPlayers.slice(0, 7).map((p, origIdx) => {
-    const cleanName = (p.name || '').trim();
-    const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
-    const scoreStr = p.rendimento || inRoster.mapRatings?.[currentMapId.toLowerCase()] || inRoster.overallRating || '';
-    let numericScore = parseFloat(String(scoreStr).replace(',', '.'));
-    if (isNaN(numericScore)) numericScore = 0;
-    if (numericScore > 10 && numericScore <= 100) numericScore = numericScore / 10;
-    const kdNum = parseFloat(String(p.kd || inRoster.kd || '0').replace(',', '.')) || 0;
+  // 1. Separa jogadoras escaladas das vagas sem ninguém escalado (R1, R2, etc.)
+  const scaledPool = [];
+  const unscaledPool = [];
 
-    return {
-      player: { ...p },
-      score: numericScore,
-      kd: kdNum,
-      inRoster,
-      origIdx
-    };
+  currentPlayers.forEach((p, idx) => {
+    if (idx < 5 || hasScaledPlayer(p)) {
+      scaledPool.push({ ...p, origIdx: idx });
+    } else {
+      unscaledPool.push({ ...p, origIdx: idx });
+    }
   });
 
-  // Ordena decrescente: Top 5 viram titulares, 2 seguintes viram reservas
-  activePool.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return b.kd - a.kd;
+  // 2. Ordena apenas as jogadoras escaladas por pontuação decrescente
+  scaledPool.sort((a, b) => {
+    const aM = getPlayerNumericScore(a, currentMapId);
+    const bM = getPlayerNumericScore(b, currentMapId);
+    if (bM.score !== aM.score) return bM.score - aM.score;
+    return bM.kd - aM.kd;
   });
 
-  const titulares = activePool.slice(0, 5).map(item => item.player);
-  const reservas = activePool.slice(5, 7).map(item => item.player);
+  const titulares = scaledPool.slice(0, 5);
+  const activeReserves = scaledPool.slice(5);
 
-  // Obtém os 5 agentes da composição meta recomendada do mapa ativo
+  // 3. Obtém os 5 agentes da composição meta recomendada do mapa ativo
   const mapPreset = getMapTacticalPreset(currentMapId);
   const metaAgents = (mapPreset && Array.isArray(mapPreset.agents) && mapPreset.agents.length === 5)
     ? [...mapPreset.agents]
     : ['Jett', 'Sova', 'Omen', 'Killjoy', 'KAY/O'];
 
-  // Função de afinidade da jogadora com um agente do meta
+  // 4. Casamento ótimo entre titulares e os 5 agentes do meta
   function getAffinity(player, agentName) {
     let score = 10;
     const cleanAgent = (agentName || '').trim().toLowerCase();
@@ -942,7 +988,6 @@ window.autoOrganizeAndAssignComps = function() {
     return score;
   }
 
-  // Gera todas as permutações de 5 agentes para encontrar o casamento ótimo
   function getPermutations(arr) {
     if (arr.length <= 1) return [arr];
     const perms = [];
@@ -962,7 +1007,7 @@ window.autoOrganizeAndAssignComps = function() {
 
   allPerms.forEach(perm => {
     let sumScore = 0;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < titulares.length; i++) {
       sumScore += getAffinity(titulares[i], perm[i]);
     }
     if (sumScore > bestScore) {
@@ -971,13 +1016,13 @@ window.autoOrganizeAndAssignComps = function() {
     }
   });
 
-  // Atribui os agentes meta aos 5 titulares (sem conflitos)
+  // Atribui os agentes meta às 5 titulares
   titulares.forEach((p, idx) => {
     p.id = idx + 1;
+    p.isSub = false;
     const assignedTitular = bestPerm[idx];
     p.titular = assignedTitular;
 
-    // Define agente Reserva: busca o segundo agente favorito que seja DIFERENTE do titular
     const rosterObj = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (p.name || '').trim().toLowerCase()) || {};
     const candidatePool = [
       ...(p.mostPlayed || []),
@@ -997,8 +1042,8 @@ window.autoOrganizeAndAssignComps = function() {
     }
   });
 
-  // Configura as 2 Reservas Principais
-  reservas.forEach((p, rIdx) => {
+  // Reservas que possuem jogadoras escaladas
+  activeReserves.forEach((p, rIdx) => {
     p.id = rIdx + 6;
     p.isSub = true;
     const rosterObj = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (p.name || '').trim().toLowerCase()) || {};
@@ -1009,9 +1054,14 @@ window.autoOrganizeAndAssignComps = function() {
     p.flex3 = favs[2] || (p.flex1 === 'Sova' ? 'Fade' : 'Sova');
   });
 
-  // Preserva intactas as vagas extras (Reserva 3 e 4) nos índices 7 e 8
-  const extraSlots = currentPlayers.slice(7);
-  const finalLineup = [...titulares, ...reservas, ...extraSlots];
+  // Vagas sem ninguém escalado (R1, R2, etc.): FICAM NO FINAL E NÃO SÃO ESCALADAS NEM ORGANIZADAS
+  const reorderedUnscaled = unscaledPool.map((p, uIdx) => {
+    p.id = titulares.length + activeReserves.length + uIdx + 1;
+    p.isSub = true;
+    return p;
+  });
+
+  const finalLineup = [...titulares, ...activeReserves, ...reorderedUnscaled];
 
   state.lineups[currentMapId] = finalLineup;
   saveCurrentState();
@@ -1022,7 +1072,7 @@ window.autoOrganizeAndAssignComps = function() {
 
   renderPlayersList();
   const mapName = (MAPS_DATA.find(m => m.id === currentMapId) || {}).name || currentMapId;
-  showToast(`🎯 Elenco organizado e escalado com o Meta de ${mapName}!`, 'success');
+  showToast(`🎯 5 Titulares organizadas e escaladas com o Meta de ${mapName}! R1 e R2 mantidos no final.`, 'success');
 };
 
 // Renderiza a lista das 5 Jogadoras Titulares e 2 Reservas Flex
@@ -1362,9 +1412,14 @@ function renderPlayersList() {
       const actualIndex = rIdx + 5;
       const isSwapSource = state.manualSwapSourceIndex === actualIndex;
       const isSwapActive = state.manualSwapSourceIndex !== null;
+      const isUnscaled = !hasScaledPlayer(player);
       const cardBorder = isSwapSource 
         ? 'border-amber-400 ring-2 ring-amber-400/80 bg-[#161a22] shadow-[0_0_20px_rgba(245,158,11,0.4)]' 
-        : (isSwapActive ? 'border-sky-500/40 hover:border-amber-400/70 hover:bg-[#111924] cursor-pointer' : 'border-amber-900/40 hover:border-amber-500/50 bg-[#101722]');
+        : (isSwapActive 
+            ? 'border-sky-500/40 hover:border-amber-400/70 hover:bg-[#111924] cursor-pointer' 
+            : (isUnscaled 
+                ? 'border-gray-800/80 hover:border-amber-500/40 bg-[#0a0f16]/70 opacity-40 hover:opacity-100 filter grayscale-[40%] hover:grayscale-0 transition-all duration-300' 
+                : 'border-amber-900/40 hover:border-amber-500/50 bg-[#101722] transition-all'));
 
       const swapBannerHtml = isSwapSource ? `
         <div class="w-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-tactical font-bold px-2.5 py-1 rounded-md flex items-center justify-between mb-1.5">
@@ -1490,17 +1545,17 @@ function renderPlayersList() {
                 <button type="button"
                         onclick="window.openPlayerProfileModal(${actualIndex})"
                         title="Ver Perfil Completo, Histórico de Partidas e Alterar Foto de ${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}"
-                        class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-amber-300 hover:text-white shadow-inner flex-shrink-0 transition-all cursor-pointer group relative overflow-hidden">
+                        class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg ${isUnscaled ? 'bg-gray-900/80 hover:bg-gray-800 border-gray-700 text-gray-500' : 'bg-amber-950/70 hover:bg-amber-900/90 border-amber-500/50 hover:border-amber-400 text-amber-300'} flex items-center justify-center font-tactical font-bold text-xs sm:text-sm hover:text-white shadow-inner flex-shrink-0 transition-all cursor-pointer group relative overflow-hidden">
                   ${reserveAvatarSrc ? `
                     <img src="${reserveAvatarSrc}" alt="Avatar" class="w-full h-full object-cover">
-                    <span class="absolute bottom-0 right-0 bg-[#0d141e]/90 text-[7px] font-black text-amber-300 px-0.5 leading-none">R${rIdx + 1}</span>
+                    <span class="absolute bottom-0 right-0 bg-[#0d141e]/90 text-[7px] font-black ${isUnscaled ? 'text-gray-400' : 'text-amber-300'} px-0.5 leading-none">R${rIdx + 1}</span>
                   ` : `
                     <span>R${rIdx + 1}</span>
                     <span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-[#0d141e] flex items-center justify-center text-[7px] text-black font-bold opacity-80 group-hover:opacity-100 group-hover:scale-125 transition">📊</span>
                   `}
                 </button>
                 <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${actualIndex}">
-                  ${rIdx >= 2 ? `<div class="mb-1"><span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-gray-800/90 text-amber-400/80 border border-amber-500/20">Vaga Extra (Sem Player)</span></div>` : ''}
+                  ${isUnscaled ? `<div class="mb-1"><span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-gray-900/90 text-gray-400 border border-gray-700/60 inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-gray-500"></span> Vaga Reserva Livre (Não Escalada)</span></div>` : ''}
                   <input type="text" 
                          id="player-name-input-${actualIndex}"
                          value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
@@ -5831,14 +5886,8 @@ function generateWhatsappMapText(mapId) {
     text += `${idx + 1}️⃣ *${p.name || `Player ${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
   });
 
-  // Reservas Ativas (Ignora Reserva 3 e 4)
-  const reserves = players.slice(5).filter((p, idx) => {
-    if (idx >= 2) return false; // NUNCA considera Reserva 3 e 4
-    const clean = (p.name || '').trim();
-    if (!clean || clean === 'Reserva 3' || clean === 'Reserva 4') return false;
-    if (clean.startsWith('Reserva ') && !p.flex1 && !p.flex2 && !p.flex3 && !p.rendimento) return false;
-    return true;
-  });
+  // Reservas Ativas (Ignora vagas sem jogadora escalada)
+  const reserves = players.slice(5).filter(p => hasScaledPlayer(p));
   if (reserves.length > 0) {
     text += `\n👥 *RESERVAS & FLEX:*\n`;
     reserves.forEach((p, idx) => {
@@ -5875,13 +5924,7 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
       const rend = p.rendimento ? ` [${p.rendimento}/10]` : '';
       text += `• *${p.name || `P${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
     });
-    const reserves = players.slice(5).filter((r, rIdx) => {
-      if (rIdx >= 2) return false;
-      const clean = (r.name || '').trim();
-      if (!clean || clean === 'Reserva 3' || clean === 'Reserva 4') return false;
-      if (clean.startsWith('Reserva ') && !r.flex1 && !r.flex2 && !r.flex3 && !r.rendimento) return false;
-      return true;
-    });
+    const reserves = players.slice(5).filter(r => hasScaledPlayer(r));
     if (reserves.length > 0) {
       const flexList = reserves.map((r, rIdx) => {
         const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
@@ -5908,13 +5951,7 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
         const rend = p.rendimento ? ` [${p.rendimento}/10]` : '';
         text += `• *${p.name || `P${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
       });
-      const reserves = players.slice(5).filter((r, rIdx) => {
-        if (rIdx >= 2) return false;
-        const clean = (r.name || '').trim();
-        if (!clean || clean === 'Reserva 3' || clean === 'Reserva 4') return false;
-        if (clean.startsWith('Reserva ') && !r.flex1 && !r.flex2 && !r.flex3 && !r.rendimento) return false;
-        return true;
-      });
+      const reserves = players.slice(5).filter(r => hasScaledPlayer(r));
       if (reserves.length > 0) {
         const flexList = reserves.map((r, rIdx) => {
           const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
@@ -6936,19 +6973,8 @@ function renderTeamAnalyticsView() {
     };
   });
 
-  // Processa APENAS as reservas ativas que têm jogadora real (NUNCA considera Reserva 3 e 4)
-  const reservas = currentLineup.slice(5).filter((p, rIdx) => {
-    if (rIdx >= 2) return false; // NUNCA considera Reserva 3 e Reserva 4 (sem jogadora)
-    const cleanName = (p.name || '').trim();
-    if (!cleanName) return false;
-    if (cleanName === 'Reserva 3' || cleanName === 'Reserva 4') return false;
-    // Se for nome genérico default sem dados/player cadastrado, não polui as estatísticas
-    const isGeneric = (cleanName === 'Reserva 1' || cleanName === 'Reserva 2');
-    const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase());
-    const hasData = cleanName.includes('#') || inRoster || (p.flex1 || p.flex2 || p.flex3 || p.rendimento || p.kd);
-    if (isGeneric && !hasData) return false;
-    return true;
-  }).map((p, rIdx) => {
+  // Processa APENAS as reservas que possuem jogadoras efetivamente escaladas
+  const reservas = currentLineup.slice(5).filter(p => hasScaledPlayer(p)).map((p, rIdx) => {
     const idx = rIdx + 5;
     const cleanName = (p.name || '').trim() || `Reserva ${rIdx + 1}`;
     const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
@@ -8467,9 +8493,8 @@ window.startTeamSync = async function(force = false) {
   const currentLineup = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
   const playersToSync = [];
   currentLineup.forEach((p, idx) => {
-    if (idx >= 7) return; // NUNCA considera Reserva 3 e 4
+    if (!hasScaledPlayer(p)) return; // Ignora vagas sem ninguém escalado (R1, R2, etc.)
     const clean = (p.name || '').trim();
-    if (clean === 'Reserva 3' || clean === 'Reserva 4') return;
     if (clean && clean.includes('#')) {
       playersToSync.push({
         index: idx,
@@ -8754,12 +8779,7 @@ function renderSyncView() {
   const mgr = state.syncManager;
   const currentLineup = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
   const allTeamPlayers = currentLineup
-    .filter((p, idx) => {
-      if (idx >= 7) return false; // NUNCA considera Reserva 3 e 4
-      const clean = (p.name || '').trim();
-      if (clean === 'Reserva 3' || clean === 'Reserva 4') return false;
-      return true;
-    })
+    .filter(p => hasScaledPlayer(p))
     .map((p, idx) => {
     const clean = (p.name || '').trim();
     const inR = (state.roster || []).find(r => r.name && r.name.toLowerCase() === clean.toLowerCase()) || {};
