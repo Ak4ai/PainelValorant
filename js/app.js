@@ -420,6 +420,15 @@ window.toggleTeamDropdown = function(event) {
   if (isHidden) {
     renderTeamSelectorUI();
     menu.classList.remove('hidden');
+
+    // Abre para a direita por padrão (left-0), ajustando caso atinja a borda da tela
+    menu.style.left = '0';
+    menu.style.right = 'auto';
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8) {
+      menu.style.left = 'auto';
+      menu.style.right = '0';
+    }
   } else {
     menu.classList.add('hidden');
   }
