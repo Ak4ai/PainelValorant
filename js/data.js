@@ -50,6 +50,13 @@ const AGENTS = {
       color: '#a758ff',
       icon: 'https://media.valorant-api.com/agents/0e38b510-41a8-5780-5e8f-568b2a4f2d6c/displayicon.png',
       bust: 'https://media.valorant-api.com/agents/0e38b510-41a8-5780-5e8f-568b2a4f2d6c/fullportrait.png'
+    },
+    { 
+      name: 'Waylay', 
+      role: 'Duelista', 
+      color: '#ff4081',
+      icon: 'https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/displayicon.png',
+      bust: 'https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/fullportrait.png'
     }
   ],
   Iniciadores: [
@@ -94,6 +101,13 @@ const AGENTS = {
       color: '#a3f338',
       icon: 'https://media.valorant-api.com/agents/e370fa57-4757-3604-3648-499e1f642d3f/displayicon.png',
       bust: 'https://media.valorant-api.com/agents/e370fa57-4757-3604-3648-499e1f642d3f/fullportrait.png'
+    },
+    { 
+      name: 'Tejo', 
+      role: 'Iniciador', 
+      color: '#e57b32',
+      icon: 'https://media.valorant-api.com/agents/b444168c-4e35-8076-db47-ef9bf368f384/displayicon.png',
+      bust: 'https://media.valorant-api.com/agents/b444168c-4e35-8076-db47-ef9bf368f384/fullportrait.png'
     }
   ],
   Controladores: [
@@ -138,6 +152,13 @@ const AGENTS = {
       color: '#ff66c4',
       icon: 'https://media.valorant-api.com/agents/1dbf2edd-4729-0984-3115-daa5eed44993/displayicon.png',
       bust: 'https://media.valorant-api.com/agents/1dbf2edd-4729-0984-3115-daa5eed44993/fullportrait.png'
+    },
+    { 
+      name: 'Miks', 
+      role: 'Controlador', 
+      color: '#8c52ff',
+      icon: 'https://media.valorant-api.com/agents/7c8a4701-4de6-9355-b254-e09bc2a34b72/displayicon.png',
+      bust: 'https://media.valorant-api.com/agents/7c8a4701-4de6-9355-b254-e09bc2a34b72/fullportrait.png'
     }
   ],
   Sentinelas: [
@@ -182,6 +203,13 @@ const AGENTS = {
       color: '#8d99ae',
       icon: 'https://media.valorant-api.com/agents/efba5359-4016-a1e5-7626-b1ae76895940/displayicon.png',
       bust: 'https://media.valorant-api.com/agents/efba5359-4016-a1e5-7626-b1ae76895940/fullportrait.png'
+    },
+    { 
+      name: 'Veto', 
+      role: 'Sentinela', 
+      color: '#00b4d8',
+      icon: 'https://media.valorant-api.com/agents/92eeef5d-43b5-1d4a-8d03-b3927a09034b/displayicon.png',
+      bust: 'https://media.valorant-api.com/agents/92eeef5d-43b5-1d4a-8d03-b3927a09034b/fullportrait.png'
     }
   ]
 };
@@ -275,14 +303,14 @@ const MAPS_DATA = [
         agents: ['Fade', 'Omen', 'Killjoy', 'Raze', 'Viper']
       },
       {
-        title: 'Ex2 (Info)',
-        tag: 'Info & Retomada',
-        agents: ['Sova', 'Omen', 'Cypher', 'Jett', 'KAY/O']
+        title: 'Ex2 (Artilharia & Info)',
+        tag: 'Controle Tejo',
+        agents: ['Tejo', 'Omen', 'Cypher', 'Jett', 'KAY/O']
       },
       {
-        title: 'Ex3 (Espaço)',
+        title: 'Ex3 (Espaço & Sonic)',
         tag: 'Abertura de Espaço',
-        agents: ['Skye', 'Viper', 'Killjoy', 'Raze', 'Omen']
+        agents: ['Skye', 'Miks', 'Killjoy', 'Waylay', 'Omen']
       }
     ]
   },
@@ -350,14 +378,14 @@ const MAPS_DATA = [
         agents: ['Jett', 'Omen', 'Cypher', 'Sova', 'KAY/O']
       },
       {
-        title: 'Ex2 (Controle)',
-        tag: 'Controle de Quedas',
-        agents: ['Raze', 'Viper', 'Killjoy', 'Fade', 'Omen']
+        title: 'Ex2 (Controle & Artilharia)',
+        tag: 'Controle Tejo + Miks',
+        agents: ['Raze', 'Viper', 'Killjoy', 'Tejo', 'Miks']
       },
       {
-        title: 'Ex3 (Explosiva)',
-        tag: 'Agressão Explosiva',
-        agents: ['Neon', 'Omen', 'Chamber', 'Skye', 'Sova']
+        title: 'Ex3 (Veto Defensivo)',
+        tag: 'Interceptação & Stun',
+        agents: ['Neon', 'Miks', 'Veto', 'Skye', 'Sova']
       }
     ]
   },
@@ -490,7 +518,7 @@ const MAPS_DATA = [
   }
 ];
 
-// Dados padrão iniciais para as jogadoras (5 Titulares + 2 Reservas Flex)
+// Dados padrão iniciais para as jogadoras (5 Titulares + 4 Reservas com 3 Flex cada)
 const DEFAULT_PLAYERS = [
   { id: 1, name: 'Player 1', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
   { id: 2, name: 'Player 2', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
@@ -498,7 +526,9 @@ const DEFAULT_PLAYERS = [
   { id: 4, name: 'Player 4', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
   { id: 5, name: 'Player 5', titular: '', reserva: '', kd: '', rendimento: '', mostPlayed: [] },
   { id: 6, name: 'Reserva 1', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] },
-  { id: 7, name: 'Reserva 2', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] }
+  { id: 7, name: 'Reserva 2', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 8, name: 'Reserva 3', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] },
+  { id: 9, name: 'Reserva 4', isSub: true, flex1: '', flex2: '', flex3: '', kd: '', rendimento: '', mostPlayed: [] }
 ];
 
 // Banco padrão de jogadoras cadastradas para Autocomplete rápido
@@ -528,7 +558,11 @@ const DEFAULT_ROSTER = [
   { name: 'Mari#BR1', kd: '1.05', mostPlayed: ['Killjoy', 'Cypher', 'Deadlock'], role: 'Sentinela', overallRating: '7.0' },
   { name: 'Camila#BR1', kd: '1.12', mostPlayed: ['Raze', 'Jett', 'Neon'], role: 'Duelista', overallRating: '7.6' },
   { name: 'Bia#BR1', kd: '1.08', mostPlayed: ['Skye', 'Breach', 'KAY/O'], role: 'Flex', overallRating: '7.2' },
-  { name: 'Carol#BR1', kd: '1.14', mostPlayed: ['Clove', 'Brimstone', 'Iso'], role: 'Flex', overallRating: '7.8' }
+  { name: 'Carol#BR1', kd: '1.14', mostPlayed: ['Clove', 'Brimstone', 'Iso'], role: 'Flex', overallRating: '7.8' },
+  { name: 'TejoMaster#BR1', kd: '1.21', mostPlayed: ['Tejo', 'Sova', 'Gekko'], role: 'Iniciador', overallRating: '8.0' },
+  { name: 'MiksSonic#BR1', kd: '1.17', mostPlayed: ['Miks', 'Omen', 'Clove'], role: 'Controlador', overallRating: '7.7' },
+  { name: 'VetoWall#BR1', kd: '1.10', mostPlayed: ['Veto', 'Killjoy', 'Vyse'], role: 'Sentinela', overallRating: '7.3' },
+  { name: 'WaylayRush#BR1', kd: '1.24', mostPlayed: ['Waylay', 'Jett', 'Reyna'], role: 'Duelista', overallRating: '8.2' }
 ];
 
 // Compatibilidade Universal (Global Window)

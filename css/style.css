@@ -38,16 +38,22 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-h1, h2, h3, .font-tactical {
+h1, h2, h3, h4, h5, h6, .font-tactical {
   font-family: 'Rajdhani', sans-serif;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .font-hero {
   font-family: 'Teko', sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Scrollbar personalizada */
@@ -96,7 +102,34 @@ h1, h2, h3, .font-tactical {
   border: 1px solid var(--v-card-border);
   backdrop-filter: blur(8px);
   position: relative;
+  min-width: 0;
   max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  h1, h2, h3, h4, h5, h6 {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  h1.flex, h2.flex, h3.flex, h4.flex, h5.flex, h6.flex {
+    flex-wrap: wrap;
+  }
+  .tactical-card {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .tactical-card h1, .tactical-card h2, .tactical-card h3, .tactical-card h4, .tactical-card h5, .tactical-card h6,
+  .tactical-card p, .tactical-card span, .tactical-card label {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
 }
 
 .player-card-active-dropdown {
@@ -152,6 +185,7 @@ h1, h2, h3, .font-tactical {
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 .map-tabs-container::-webkit-scrollbar {
   display: none;

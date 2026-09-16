@@ -31,7 +31,7 @@
   </script>
 
   <!-- Google Fonts & Custom CSS -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.1">
+  <link rel="stylesheet" href="css/style.css?v=1.0.2">
   
   <!-- Firebase Compat SDKs (Client-only, zero backend) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -40,55 +40,80 @@
 <body class="text-[#ece8e1] min-h-screen flex flex-col pb-20 selection:bg-[#ff4655] selection:text-white">
 
   <!-- Header Superior -->
-  <header class="sticky top-0 z-40 bg-[#090e14]/95 backdrop-blur-md border-b border-[#1e2c3c] px-3 sm:px-4 py-2.5 shadow-lg w-full">
-    <div class="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-3 w-full min-w-0">
+  <header class="sticky top-0 z-40 bg-[#090e14]/95 backdrop-blur-md border-b border-[#1e2c3c] px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 shadow-lg w-full">
+    <div class="w-full max-w-[1920px] mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 md:gap-3 min-w-0">
       
-      <!-- Marca / Logo -->
-      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink-0">
-        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded bg-[#ff4655] flex items-center justify-center font-tactical font-bold text-base sm:text-lg text-white shadow-[0_0_15px_rgba(255,70,85,0.4)] flex-shrink-0">
-          V
+      <!-- Linha 1 no Mobile / Esquerda no Desktop: Logo + Status & Ações -->
+      <div class="flex items-center justify-between gap-2 min-w-0 w-full md:w-auto">
+        <!-- Marca / Logo -->
+        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-shrink-0">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded bg-[#ff4655] flex items-center justify-center font-tactical font-bold text-sm sm:text-base text-white shadow-[0_0_15px_rgba(255,70,85,0.4)] flex-shrink-0">
+            V
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-xs sm:text-base font-tactical font-bold text-white tracking-wider flex items-center gap-1 leading-tight truncate">
+              VALORANT <span class="text-[#ff4655]">LINEUP</span>
+            </h1>
+            <p class="text-[9px] text-gray-400 hidden lg:block leading-none">Planejamento Tático e Escalação</p>
+          </div>
         </div>
-        <div class="min-w-0">
-          <h1 class="text-sm sm:text-lg font-tactical font-bold text-white tracking-wider flex items-center gap-1 leading-tight truncate">
-            VALORANT <span class="text-[#ff4655]">LINEUP</span>
-          </h1>
-          <p class="text-[10px] text-gray-400 hidden md:block leading-none">Planejamento Tático e Escalação</p>
+
+        <!-- Status de Conexão e Ações de Topo (Compacto no Mobile) -->
+        <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+          <!-- Status Pill -->
+          <button id="connection-status-pill" onclick="window.openFirebaseModal()" title="Clique para configurar o Firebase" class="inline-flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-xs font-semibold bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/60 cursor-pointer transition flex-shrink-0">
+            <span id="connection-status-dot" class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
+            <span id="connection-status-text" class="hidden xs:inline whitespace-nowrap">Modo Local</span>
+          </button>
+
+          <!-- Botão Configurar Nuvem -->
+          <button onclick="window.openFirebaseModal()" title="Configuração de Nuvem em Tempo Real" class="p-1 sm:p-1.5 rounded bg-[#16202c] border border-[#253549] text-gray-300 hover:text-white hover:border-[#ff4655] transition text-xs flex items-center gap-1 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ff4655]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <span class="hidden lg:inline font-tactical">Nuvem</span>
+          </button>
+
+          <!-- Botão WhatsApp Principal -->
+          <button onclick="window.openWhatsappModal()" class="btn-tactical bg-[#25D366] hover:bg-[#20ba59] text-black font-bold px-2 sm:px-2.5 py-1 text-xs flex items-center gap-1 shadow-md flex-shrink-0">
+            <svg class="w-3.5 h-3.5 fill-current flex-shrink-0" viewBox="0 0 24 24">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+            </svg>
+            <span class="font-tactical tracking-wide hidden xs:inline">WhatsApp</span>
+          </button>
         </div>
       </div>
 
-      <!-- Status de Conexão e Ações de Topo -->
-      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-        <!-- Status Pill -->
-        <button id="connection-status-pill" onclick="window.openFirebaseModal()" title="Clique para configurar o Firebase" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/60 cursor-pointer transition flex-shrink-0">
-          <span id="connection-status-dot" class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
-          <span id="connection-status-text" class="whitespace-nowrap">Modo Local</span>
+      <!-- Linha 2 no Mobile / Centro no Desktop: Switcher Principal de Abas (Lineup / Estatísticas / Sincronizar) -->
+      <nav class="grid grid-cols-3 md:flex items-center gap-1 bg-[#0b121a] p-1 rounded-xl border border-[#1e2f42] w-full md:w-auto flex-shrink-0">
+        <button id="main-nav-btn-lineup" onclick="window.switchMainView('lineup')" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-tactical font-bold transition flex items-center justify-center gap-1 bg-[#ff4655] text-white shadow-[0_0_10px_rgba(255,70,85,0.3)] w-full">
+          <span>📋</span>
+          <span class="whitespace-nowrap">Lineup</span>
         </button>
-
-        <!-- Botão Configurar Nuvem -->
-        <button onclick="window.openFirebaseModal()" title="Configuração de Nuvem em Tempo Real" class="p-1.5 sm:p-2 rounded bg-[#16202c] border border-[#253549] text-gray-300 hover:text-white hover:border-[#ff4655] transition text-xs flex items-center gap-1 flex-shrink-0">
-          <svg class="w-4 h-4 text-[#ff4655]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-          </svg>
-          <span class="hidden md:inline font-tactical">Nuvem</span>
+        <button id="main-nav-btn-analytics" onclick="window.switchMainView('analytics')" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-tactical font-bold transition flex items-center justify-center gap-1 text-gray-400 hover:text-white hover:bg-[#14202d] w-full">
+          <span>📊</span>
+          <span class="whitespace-nowrap">Estatísticas</span>
         </button>
-
-        <!-- Botão WhatsApp Principal -->
-        <button onclick="window.openWhatsappModal()" class="btn-tactical bg-[#25D366] hover:bg-[#20ba59] text-black font-bold px-2.5 sm:px-3 py-1 text-xs sm:text-sm flex items-center gap-1 shadow-md flex-shrink-0">
-          <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current flex-shrink-0" viewBox="0 0 24 24">
-            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-          </svg>
-          <span class="font-tactical tracking-wide hidden xs:inline">WhatsApp</span>
+        <button id="main-nav-btn-sync" onclick="window.switchMainView('sync')" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-tactical font-bold transition flex items-center justify-center gap-1 text-gray-400 hover:text-white hover:bg-[#14202d] w-full">
+          <span>⚡</span>
+          <span class="whitespace-nowrap">Sincronizar</span>
+          <span id="sync-active-indicator" class="w-1.5 h-1.5 rounded-full bg-emerald-400 hidden animate-pulse" title="Sincronização em andamento"></span>
         </button>
-      </div>
+      </nav>
 
     </div>
   </header>
 
-  <!-- Banner Informativo da Equipe -->
-  <section class="max-w-6xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4 w-full">
-    <div class="tactical-card rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 border border-[#1e2c3c]">
-      <div class="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto min-w-0">
+  <!-- ========================================================================= -->
+  <!-- VIEW 1: LINEUP & TÁTICO (ESCALAÇÃO DOS MAPAS)                             -->
+  <!-- ========================================================================= -->
+  <div id="view-lineup" class="w-full flex-1 flex flex-col">
+
+    <!-- Banner Informativo da Equipe -->
+    <section class="w-full max-w-[1920px] mx-auto px-2.5 sm:px-6 lg:px-8 mt-2.5 sm:mt-4">
+    <div class="tactical-card rounded-lg p-2.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 border border-[#1e2c3c]">
+      <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto min-w-0">
         <div class="p-1.5 sm:p-2 rounded bg-[#182433] text-[#ff4655] flex-shrink-0">
           <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
@@ -97,56 +122,60 @@
         <div class="flex-1 min-w-0">
           <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block">Nome do Time / Campeonato</label>
           <input id="team-name-input" type="text" value="Lineup Feminina Valorant" 
-                 class="w-full bg-transparent font-tactical text-sm sm:text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-[#ff4655] transition py-0.5 truncate" 
+                 class="w-full bg-transparent font-tactical text-xs sm:text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-[#ff4655] transition py-0.5 truncate" 
                  placeholder="Digite o nome da equipe...">
         </div>
       </div>
 
-      <div class="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end text-[11px] text-gray-400 pt-1 sm:pt-0 border-t border-gray-800 sm:border-0 flex-wrap">
-        <button onclick="window.openRosterModal()" title="Gerenciar banco de jogadoras da equipe e autocompletar" class="btn-tactical px-2.5 py-1 rounded bg-[#16202c] hover:bg-[#1a2b3c] border border-[#273d52] text-xs font-semibold text-emerald-400 hover:text-white flex items-center gap-1.5 transition shadow-sm">
-          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-between sm:justify-end text-[11px] text-gray-400 pt-1 sm:pt-0 border-t border-gray-800 sm:border-0 flex-wrap">
+        <button onclick="window.openRosterModal()" title="Gerenciar banco de jogadoras da equipe e autocompletar" class="btn-tactical px-2 sm:px-2.5 py-1 rounded bg-[#16202c] hover:bg-[#1a2b3c] border border-[#273d52] text-[11px] sm:text-xs font-semibold text-emerald-400 hover:text-white flex items-center gap-1 sm:gap-1.5 transition shadow-sm flex-1 sm:flex-initial justify-center">
+          <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
           </svg>
-          <span>Banco de Jogadoras (Roster)</span>
+          <span class="hidden sm:inline">Banco de Jogadoras (Roster)</span>
+          <span class="sm:hidden">Roster Elenco</span>
         </button>
-        <button onclick="window.replicateRosterToAllMaps()" title="Copiar os nicks, K/D e mais jogadas deste mapa para todos os outros mapas" class="btn-tactical px-2.5 py-1 rounded bg-[#16202c] hover:bg-[#223142] border border-[#27384c] text-xs font-semibold text-sky-300 hover:text-white flex items-center gap-1.5 transition shadow-sm">
-          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button onclick="window.replicateRosterToAllMaps()" title="Copiar os nicks, K/D e mais jogadas deste mapa para todos os outros mapas" class="btn-tactical px-2 sm:px-2.5 py-1 rounded bg-[#16202c] hover:bg-[#223142] border border-[#27384c] text-[11px] sm:text-xs font-semibold text-sky-300 hover:text-white flex items-center gap-1 sm:gap-1.5 transition shadow-sm flex-1 sm:flex-initial justify-center">
+          <svg class="w-3.5 h-3.5 text-sky-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
           </svg>
-          <span>Replicar Nomes em Todos os Mapas</span>
+          <span class="hidden sm:inline">Replicar Nomes em Todos os Mapas</span>
+          <span class="sm:hidden">Replicar Mapas</span>
         </button>
       </div>
     </div>
   </section>
 
   <!-- Navegação de Mapas (Tabs Deslizantes) -->
-  <section class="max-w-6xl mx-auto px-3 sm:px-4 mt-3 sm:mt-4 w-full">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
-        <span class="text-[10px] sm:text-xs uppercase font-tactical font-semibold tracking-wider text-gray-400 whitespace-nowrap">Filtro:</span>
-        <button id="pool-filter-meta" onclick="window.filterMapPool('meta')" class="btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#ff4655] text-white shadow-[0_0_10px_rgba(255,70,85,0.3)] whitespace-nowrap flex-shrink-0">
-          <span>🏆 Pool Campeonato</span>
+  <section class="w-full max-w-[1920px] mx-auto px-2.5 sm:px-6 lg:px-8 mt-2.5 sm:mt-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
+      <div class="flex items-center gap-1 sm:gap-1.5 overflow-x-auto pb-0.5 max-w-full map-tabs-container">
+        <span class="text-[9px] sm:text-xs uppercase font-tactical font-semibold tracking-wider text-gray-400 whitespace-nowrap">Filtro:</span>
+        <button id="pool-filter-meta" onclick="window.filterMapPool('meta')" class="btn-tactical px-2 sm:px-2.5 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#ff4655] text-white shadow-[0_0_10px_rgba(255,70,85,0.3)] whitespace-nowrap flex-shrink-0">
+          <span class="hidden sm:inline">🏆 Pool Campeonato</span>
+          <span class="sm:hidden">🏆 Meta</span>
           <span class="text-[9px] bg-black/30 px-1 rounded">6</span>
         </button>
-        <button id="pool-filter-bench" onclick="window.filterMapPool('bench')" class="btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-amber-300 hover:text-white border border-[#233547] hover:border-amber-500/50 whitespace-nowrap flex-shrink-0">
-          <span>📦 Fora do Meta</span>
+        <button id="pool-filter-bench" onclick="window.filterMapPool('bench')" class="btn-tactical px-2 sm:px-2.5 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-amber-300 hover:text-white border border-[#233547] hover:border-amber-500/50 whitespace-nowrap flex-shrink-0">
+          <span class="hidden sm:inline">📦 Fora do Meta</span>
+          <span class="sm:hidden">📦 Fora</span>
           <span class="text-[9px] bg-black/30 px-1 rounded">5</span>
         </button>
-        <button id="pool-filter-all" onclick="window.filterMapPool('all')" class="btn-tactical px-2.5 py-1 rounded text-[11px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-gray-400 hover:text-white border border-[#233547] whitespace-nowrap flex-shrink-0">
+        <button id="pool-filter-all" onclick="window.filterMapPool('all')" class="btn-tactical px-2 sm:px-2.5 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-tactical font-bold transition flex items-center gap-1 bg-[#101822] text-gray-400 hover:text-white border border-[#233547] whitespace-nowrap flex-shrink-0">
           <span>Todos</span>
           <span class="text-[9px] bg-black/30 px-1 rounded">11</span>
         </button>
       </div>
-      <span class="text-[10px] text-gray-500 hidden md:inline">Deslize para ver todos &rarr;</span>
+      <span class="text-[9px] sm:text-[10px] text-gray-500 hidden md:inline">Deslize para ver todos &rarr;</span>
     </div>
     
-    <div id="map-tabs-list" class="map-tabs-container flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 -mx-1 px-1 w-full max-w-full">
+    <div id="map-tabs-list" class="map-tabs-container flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 w-full max-w-full">
       <!-- Injetado dinamicamente via JS -->
     </div>
   </section>
 
   <!-- Conteúdo Principal do Mapa Ativo -->
-  <main class="max-w-6xl mx-auto px-3 sm:px-4 mt-1 sm:mt-2 w-full flex-1 min-w-0">
+  <main class="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 mt-1 sm:mt-2 flex-1 min-w-0">
     
     <!-- Banner do Mapa Atual -->
     <div id="active-map-banner" class="tactical-card rounded-lg overflow-hidden border border-[#233547] relative mb-4 sm:mb-6 w-full">
@@ -179,12 +208,12 @@
 
     <!-- Seção 1: Composições Sugeridas (3 Builds Fixo) -->
     <section class="mb-8">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-          <span class="w-1.5 h-4 bg-[#ff4655]"></span>
-          <h3 class="text-base sm:text-lg font-tactical font-bold text-white tracking-wider">COMPOSIÇÕES SUGERIDAS (BUILDS)</h3>
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <span class="w-1.5 h-4 bg-[#ff4655] flex-shrink-0"></span>
+          <h3 class="text-sm sm:text-lg font-tactical font-bold text-white tracking-wider break-words">COMPOSIÇÕES SUGERIDAS (BUILDS)</h3>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-shrink-0">
           <span class="text-[11px] text-gray-400 hidden xs:inline">3 Exemplos Táticos</span>
           <button onclick="window.resetCurrentMapBuild()" title="Limpar agentes deste mapa" class="text-[11px] text-gray-400 hover:text-red-400 transition flex items-center gap-1 border border-[#233547] hover:border-red-500/40 rounded px-2 py-0.5 bg-[#101822]">
             <svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,9 +232,9 @@
     <!-- Seção 2: Módulo de Preenchimento das 5 Jogadoras -->
     <section class="mb-8">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-        <div class="flex items-center gap-2">
-          <span class="w-1.5 h-4 bg-[#00f5d4]"></span>
-          <h3 class="text-base sm:text-lg font-tactical font-bold text-white tracking-wider">ESCALAÇÃO DO TIME NO MAPA</h3>
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <span class="w-1.5 h-4 bg-[#00f5d4] flex-shrink-0"></span>
+          <h3 class="text-sm sm:text-lg font-tactical font-bold text-white tracking-wider break-words">ESCALAÇÃO DO TIME NO MAPA</h3>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button onclick="window.resetCurrentMapBuild()" title="Limpar agentes titulares e reservas escalados neste mapa" class="btn-tactical bg-[#16202c] hover:bg-red-950/60 text-gray-300 hover:text-red-400 border border-[#283b50] hover:border-red-500/50 text-xs font-semibold px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition flex-shrink-0">
@@ -278,14 +307,14 @@
       <!-- Seção: Jogadoras Reservas & Flex -->
       <div class="mt-6 pt-5 border-t border-[#1e2c3c]">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-3">
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-4 bg-amber-400"></span>
-            <h4 class="text-sm sm:text-base font-tactical font-bold text-white tracking-wider flex items-center gap-2">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <span class="w-1.5 h-4 bg-amber-400 flex-shrink-0"></span>
+            <h4 class="text-sm sm:text-base font-tactical font-bold text-white tracking-wider flex items-center gap-2 flex-wrap break-words">
               <span>JOGADORAS RESERVAS (SUPLENTES & FLEX)</span>
-              <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30">2 VAGAS</span>
+              <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30 flex-shrink-0">4 RESERVAS • 3 FLEX CADA</span>
             </h4>
           </div>
-          <span class="text-[10px] text-gray-400">Agentes Flex para adaptação e cobertura na composição</span>
+          <span class="text-[10px] text-gray-400 break-words">Agentes Flex para adaptação tática e cobertura na composição (4 jogadoras reservas • 3 vagas Flex cada)</span>
         </div>
 
         <div id="reserves-list-container" class="space-y-3">
@@ -295,9 +324,24 @@
     </section>
 
   </main>
+  </div><!-- /view-lineup -->
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 2: PAINEL DE ESTATÍSTICAS DA EQUIPE & SINERGIA DE AGENTES (PROTÓTIPO)-->
+  <!-- ========================================================================= -->
+  <div id="view-analytics" class="hidden w-full flex-1 flex flex-col px-3 sm:px-6 lg:px-8 mt-3 sm:mt-4 pb-20 animate-fade-in">
+    <!-- Conteúdo dinâmico renderizado via renderTeamAnalyticsView() -->
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 3: CENTRAL DE SINCRONIZAÇÃO COM A API & RATE LIMIT CONTROLLER        -->
+  <!-- ========================================================================= -->
+  <div id="view-sync" class="hidden w-full flex-1 flex flex-col px-3 sm:px-6 lg:px-8 mt-3 sm:mt-4 pb-20 animate-fade-in">
+    <!-- Conteúdo dinâmico renderizado via renderSyncView() -->
+  </div>
 
   <!-- Barra Fixa Inferior Mobile para Compartilhamento Rápido -->
-  <div class="fixed bottom-0 left-0 right-0 z-30 bg-[#090e14]/95 backdrop-blur-md border-t border-[#1e2c3c] px-3 sm:px-4 py-2 safe-bottom-bar flex items-center justify-between max-w-6xl mx-auto">
+  <div class="fixed bottom-0 left-0 right-0 z-30 bg-[#090e14]/95 backdrop-blur-md border-t border-[#1e2c3c] px-3 sm:px-6 lg:px-8 py-2 safe-bottom-bar flex items-center justify-between w-full max-w-[1920px] mx-auto">
     <div class="text-xs text-gray-300 truncate min-w-0 mr-2">
       <span class="text-gray-400 font-tactical text-[11px]">Mapa:</span> <b id="bottom-bar-map-name" class="text-white font-tactical">Ascent</b>
     </div>
@@ -311,59 +355,103 @@
     </div>
   </div>
 
-  <!-- MODAL: Escolha de Agente (Fácil e Rápido) -->
-  <div id="agent-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
-    <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-md mx-auto p-3 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
+  <!-- MODAL: Escolha de Agente (Aprimorado, Tático e Espaçoso) -->
+  <div id="agent-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-2 sm:p-4">
+    <div class="tactical-card bg-[#0d141e] border border-[#273d54] rounded-2xl w-full max-w-5xl xl:max-w-6xl mx-auto p-2.5 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden">
       
-      <!-- Cabeçalho do Modal -->
-      <div class="flex items-center justify-between pb-3 border-b border-[#1e2c3c]">
-        <div>
-          <span id="agent-modal-sub" class="text-[10px] uppercase font-tactical text-[#ff4655] font-bold">Selecionando para Player</span>
-          <h3 id="agent-modal-title" class="text-lg font-tactical font-bold text-white">ESCOLHER AGENTE</h3>
+      <!-- Cabeçalho do Modal com Contexto Completo -->
+      <div class="flex items-center justify-between pb-2 sm:pb-3 border-b border-[#1c2c3e] gap-2 sm:gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-0.5 sm:mb-1">
+            <span id="agent-modal-sub" class="text-[9px] sm:text-xs font-mono font-bold uppercase text-amber-300 bg-amber-950/70 px-2 py-0.5 rounded-md border border-amber-500/40 truncate">
+              Selecionando para Player
+            </span>
+            <span id="agent-modal-slot-pill" class="text-[9px] sm:text-xs font-tactical font-black uppercase text-sky-300 bg-sky-950/70 px-2 py-0.5 rounded-md border border-sky-500/40 truncate">
+              Titular ⭐
+            </span>
+          </div>
+          <h3 id="agent-modal-title" class="text-sm sm:text-lg font-tactical font-black text-white tracking-wider truncate uppercase">
+            ESCOLHER AGENTE
+          </h3>
         </div>
-        <button onclick="window.closeAgentModal()" class="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1a2533]">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button onclick="window.closeAgentModal()" class="p-1.5 sm:p-2 rounded-xl text-gray-400 hover:text-white hover:bg-[#182535] border border-transparent hover:border-[#2a3f58] transition cursor-pointer flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
       </div>
 
-      <!-- Filtro por Categoria e Busca -->
-      <div class="mt-3 space-y-2">
-        <input id="agent-search-input" type="text" placeholder="Buscar agente por nome..." 
-               class="w-full bg-[#16202c] border border-[#283b50] rounded px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ff4655]">
+      <!-- Filtro por Categoria e Busca Avançada -->
+      <div class="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2">
+        <div class="relative w-full">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+            <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+          </div>
+          <input id="agent-search-input" type="text" placeholder="Buscar por nome do agente (ex: Jett, Omen, Killjoy, Tejo)..." 
+                 class="w-full bg-[#080d14] border border-[#233549] rounded-xl pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 sm:py-2 text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#ff4655] transition shadow-inner">
+          <button id="agent-search-clear-btn" type="button" onclick="const i = document.getElementById('agent-search-input'); if(i){i.value=''; i.dispatchEvent(new Event('input'));}" class="absolute inset-y-0 right-0 pr-2.5 sm:pr-3 flex items-center text-gray-500 hover:text-white text-xs cursor-pointer hidden">
+            ✕
+          </button>
+        </div>
         
-        <div id="role-filters" class="flex gap-1 overflow-x-auto pb-1 text-xs">
-          <button data-role="all" class="role-filter-btn px-2.5 py-1 rounded bg-[#ff4655] text-white font-tactical font-semibold text-xs">Todos</button>
-          <button data-role="Duelistas" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Duelistas</button>
-          <button data-role="Iniciadores" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Iniciadores</button>
-          <button data-role="Controladores" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Controladores</button>
-          <button data-role="Sentinelas" class="role-filter-btn px-2.5 py-1 rounded bg-[#16202c] text-gray-300 font-tactical text-xs hover:bg-[#202d3e]">Sentinelas</button>
+        <div id="role-filters" class="flex gap-1 sm:gap-1.5 overflow-x-auto pb-0.5 sm:pb-1 text-xs">
+          <button data-role="all" class="role-filter-btn px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl bg-[#ff4655] text-white font-tactical font-bold text-[11px] sm:text-xs shadow-md whitespace-nowrap transition cursor-pointer">
+            <span>Todos</span> <span class="text-[9px] sm:text-[10px] opacity-80 font-mono">(27)</span>
+          </button>
+          <button data-role="Duelistas" class="role-filter-btn px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl bg-[#101924] text-gray-300 font-tactical font-bold text-[11px] sm:text-xs hover:bg-[#182637] hover:text-white border border-[#203246] whitespace-nowrap transition cursor-pointer">
+            <span>🎯 Duelistas</span> <span class="text-[9px] sm:text-[10px] opacity-80 font-mono">(7)</span>
+          </button>
+          <button data-role="Iniciadores" class="role-filter-btn px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl bg-[#101924] text-gray-300 font-tactical font-bold text-[11px] sm:text-xs hover:bg-[#182637] hover:text-white border border-[#203246] whitespace-nowrap transition cursor-pointer">
+            <span>👁️ Iniciadores</span> <span class="text-[9px] sm:text-[10px] opacity-80 font-mono">(7)</span>
+          </button>
+          <button data-role="Controladores" class="role-filter-btn px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl bg-[#101924] text-gray-300 font-tactical font-bold text-[11px] sm:text-xs hover:bg-[#182637] hover:text-white border border-[#203246] whitespace-nowrap transition cursor-pointer">
+            <span>☁️ Controladores</span> <span class="text-[9px] sm:text-[10px] opacity-80 font-mono">(7)</span>
+          </button>
+          <button data-role="Sentinelas" class="role-filter-btn px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl bg-[#101924] text-gray-300 font-tactical font-bold text-[11px] sm:text-xs hover:bg-[#182637] hover:text-white border border-[#203246] whitespace-nowrap transition cursor-pointer">
+            <span>🛡️ Sentinelas</span> <span class="text-[9px] sm:text-[10px] opacity-80 font-mono">(6)</span>
+          </button>
         </div>
       </div>
 
-      <!-- Sugestões Táticas Inteligentes para o Agente Selecionado -->
-      <div id="modal-agent-suggestions" class="mt-2.5 p-2.5 rounded-lg bg-[#0a1624] border border-sky-500/40 hidden">
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="text-[10px] sm:text-xs font-tactical font-bold text-sky-300 flex items-center gap-1">
-            <span>💡</span> RECOMENDADOS PARA ESTE MAPA & TIME:
+      <!-- Sugestões Táticas Inteligentes para o Agente Selecionado (Ultra Compacto no Mobile) -->
+      <div id="modal-agent-suggestions" class="mt-1.5 sm:mt-2.5 p-1.5 sm:p-2.5 rounded-xl bg-[#09121d] border border-sky-500/40 hidden animate-fade-in">
+        <div class="flex items-center justify-between mb-1 sm:mb-1.5 gap-2">
+          <span class="text-[9px] sm:text-xs font-tactical font-bold text-sky-300 flex items-center gap-1 truncate">
+            <span>💡</span>
+            <span class="hidden sm:inline">RECOMENDADOS PARA ESTE MAPA & ESCALAÇÃO:</span>
+            <span class="sm:hidden uppercase tracking-wider font-mono">Recomendados:</span>
           </span>
-          <span class="text-[9px] text-emerald-400 font-mono">1-Clique para Escolher</span>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <span class="text-[8px] sm:text-[9px] text-emerald-400 font-mono font-bold hidden xs:inline">1-Toque p/ Escolher</span>
+            <button id="toggle-suggestions-btn" type="button" onclick="window.toggleModalSuggestionsMobile()" class="sm:hidden text-[9px] font-mono text-sky-300 hover:text-white bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-500/30">
+              ▲ Ocultar
+            </button>
+          </div>
         </div>
-        <div id="modal-suggestions-chips" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+        <div id="modal-suggestions-chips" class="flex sm:grid sm:grid-cols-2 md:grid-cols-3 overflow-x-auto sm:overflow-visible gap-1.5 sm:gap-2 pb-0.5 sm:pb-0 scrollbar-none">
           <!-- Injetado dinamicamente via JS -->
         </div>
       </div>
 
-      <!-- Grade de Agentes -->
-      <div id="agents-grid" class="mt-3 overflow-y-auto pr-1 grid grid-cols-2 sm:grid-cols-3 gap-2 flex-1">
+      <!-- Grade de Agentes Aprimorada (Medida Equilibrada e Espaçosa) -->
+      <div id="agents-grid" class="mt-2 sm:mt-3 overflow-y-auto pr-1 sm:pr-1.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2.5 flex-1 select-none">
         <!-- Injetado dinamicamente -->
       </div>
 
-      <!-- Botão de Limpar Agente -->
-      <div class="mt-3 pt-2 border-t border-[#1e2c3c] flex justify-between items-center">
-        <button onclick="window.clearSelectedAgent()" class="text-xs text-red-400 hover:text-red-300 py-1">Remover Seleção</button>
-        <button onclick="window.closeAgentModal()" class="text-xs text-gray-400 hover:text-white py-1 px-3 bg-[#182433] rounded">Fechar</button>
+      <!-- Rodapé do Modal -->
+      <div class="mt-3.5 pt-3 border-t border-[#1c2c3e] flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <button onclick="window.clearSelectedAgent()" class="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 hover:text-white text-xs font-tactical font-bold transition cursor-pointer flex items-center gap-1.5">
+            <span>🗑️</span>
+            <span>Remover Agente Deste Slot</span>
+          </button>
+          <span id="agents-count-indicator" class="text-[11px] text-gray-500 font-mono hidden sm:inline">27 agentes</span>
+        </div>
+        <button onclick="window.closeAgentModal()" class="px-4 py-1.5 rounded-xl bg-[#14202d] hover:bg-[#1c2c3e] border border-[#273a50] text-gray-300 hover:text-white text-xs font-tactical font-bold transition cursor-pointer">
+          Fechar
+        </button>
       </div>
 
     </div>
@@ -380,9 +468,9 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
           </div>
-          <div class="min-w-0">
-            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight truncate">SINCRONIZAÇÃO EM TEMPO REAL</h3>
-            <p class="text-[10px] text-gray-400 leading-none">Atualização ao vivo entre as jogadoras</p>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight break-words">SINCRONIZAÇÃO EM TEMPO REAL</h3>
+            <p class="text-[9px] sm:text-[10px] text-gray-400 leading-tight mt-0.5 break-words">Atualização ao vivo entre as jogadoras</p>
           </div>
         </div>
         <button onclick="window.closeFirebaseModal()" class="text-gray-400 hover:text-white p-1">
@@ -446,16 +534,16 @@
   <div id="tracker-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
     <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-md mx-auto p-4 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[88vh]">
       <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
-        <div class="flex items-center gap-2">
-          <div class="p-1.5 rounded bg-sky-500/20 text-sky-400">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <div class="p-1.5 rounded bg-sky-500/20 text-sky-400 flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
           </div>
-          <div>
-            <h3 id="tracker-modal-title" class="text-sm sm:text-base font-tactical font-bold text-white leading-tight">ESTATÍSTICAS DA JOGADORA</h3>
-            <p id="tracker-modal-sub" class="text-[10px] text-gray-400 leading-none">Nick e dados do Tracker</p>
+          <div class="min-w-0 flex-1">
+            <h3 id="tracker-modal-title" class="text-sm sm:text-base font-tactical font-bold text-white leading-tight break-words">ESTATÍSTICAS DA JOGADORA</h3>
+            <p id="tracker-modal-sub" class="text-[9px] sm:text-[10px] text-gray-400 leading-tight mt-0.5 break-words">Nick e dados do Tracker</p>
           </div>
         </div>
-        <button onclick="window.closeTrackerModal()" class="text-gray-400 hover:text-white p-1">
+        <button onclick="window.closeTrackerModal()" class="text-gray-400 hover:text-white p-1 flex-shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
@@ -523,30 +611,161 @@
     </div>
   </div>
 
+  <!-- MODAL / PÁGINA DE PERFIL DA JOGADORA (ESTATÍSTICAS, HISTÓRICO E CÁLCULO) - TELA CHEIA -->
+  <div id="player-profile-modal" class="fixed inset-0 z-50 bg-[#070c12] hidden flex-col w-full h-full max-w-full overflow-hidden animate-fade-in select-text">
+    <div class="bg-[#0b121a] w-full h-full flex flex-col overflow-hidden">
+      
+      <!-- Top Header da Jogadora (Fullscreen) -->
+      <div class="bg-[#0f1722] border-b border-[#1b2b3d] px-3.5 sm:px-6 py-3 sm:py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 flex-shrink-0 shadow-lg">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 w-full md:w-auto">
+          <button onclick="window.closePlayerProfileModal()" 
+                  title="Voltar ao Painel Tático Principal (ESC)" 
+                  class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#162332] hover:bg-[#ff4655] hover:text-white border border-[#273d57] text-gray-300 transition flex items-center gap-1.5 text-xs font-tactical font-bold flex-shrink-0 shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span class="hidden sm:inline">Voltar ao Painel</span>
+          </button>
+
+          <div id="ppm-avatar-container" class="relative flex-shrink-0">
+            <!-- Avatar grande gerado dinamicamente -->
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h2 id="ppm-player-name" class="text-base sm:text-xl font-tactical font-black text-white tracking-wide truncate">
+                c0rt3z#0303
+              </h2>
+              <span id="ppm-player-slot-badge" class="px-2 py-0.5 rounded text-[10px] font-tactical uppercase font-bold bg-[#1e2e42] text-gray-300 border border-[#2e4460] flex-shrink-0">
+                Titular P1
+              </span>
+              <span id="ppm-player-role-badge" class="px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex-shrink-0">
+                Sentinela
+              </span>
+            </div>
+            <p id="ppm-player-sub" class="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap break-words">
+              <span>Região: <b class="text-white">BR</b></span>
+              <span>•</span>
+              <span id="ppm-tracker-status-text" class="break-words">Conectado via API Oficial Riot Games</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Estatísticas Chave em Pílulas & Ações -->
+        <div class="flex items-center gap-2 flex-wrap w-full md:w-auto justify-between md:justify-end">
+          <div class="grid grid-cols-4 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            <div class="bg-[#080d13] border border-[#1e2e42] px-2 sm:px-2.5 py-1 rounded-lg text-center min-w-0">
+              <span class="text-[9px] uppercase font-tactical text-gray-400 block leading-none truncate">K/D</span>
+              <span id="ppm-kd-val" class="text-xs sm:text-sm font-mono font-black text-emerald-400 truncate block">1.09</span>
+            </div>
+            <div class="bg-[#080d13] border border-[#1e2e42] px-2 sm:px-2.5 py-1 rounded-lg text-center min-w-0">
+              <span class="text-[9px] uppercase font-tactical text-gray-400 block leading-none truncate">ACS</span>
+              <span id="ppm-acs-val" class="text-xs sm:text-sm font-mono font-black text-sky-400 truncate block">228</span>
+            </div>
+            <div class="bg-[#080d13] border border-[#1e2e42] px-2 sm:px-2.5 py-1 rounded-lg text-center min-w-0">
+              <span class="text-[9px] uppercase font-tactical text-gray-400 block leading-none truncate">Vitórias</span>
+              <span id="ppm-winrate-val" class="text-xs sm:text-sm font-mono font-black text-amber-400 truncate block">60%</span>
+            </div>
+            <div class="bg-[#080d13] border border-amber-500/40 px-2 sm:px-2.5 py-1 rounded-lg text-center relative min-w-0">
+              <span class="text-[9px] uppercase font-tactical text-amber-300 block leading-none truncate">Nota</span>
+              <div class="flex items-center justify-center gap-1">
+                <span id="ppm-rating-val" class="text-xs sm:text-sm font-mono font-black text-amber-400">7.5</span>
+                <span id="ppm-matches-pill-mini" class="text-[8px] font-mono text-amber-300/90 bg-amber-950/70 border border-amber-500/30 px-1 rounded leading-tight" title="Total de partidas analisadas">10j</span>
+              </div>
+              <span id="ppm-matches-base-val" class="text-[8px] font-mono text-gray-400 block leading-none mt-0.5 truncate">Base: 10j</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 ml-auto md:ml-2 flex-shrink-0">
+            <button onclick="window.refreshCurrentProfileFromApi()" 
+                    title="Buscar partidas recentes e atualizar ao vivo pela API Riot Games"
+                    class="p-2 rounded-lg bg-sky-950/70 hover:bg-sky-900 border border-sky-500/40 text-sky-400 hover:text-white transition flex items-center gap-1 text-xs font-bold">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              <span class="hidden lg:inline">Atualizar API</span>
+            </button>
+            <a id="ppm-tracker-link" href="#" target="_blank" rel="noopener noreferrer"
+               title="Ver perfil oficial no Tracker.gg"
+               class="p-2 rounded-lg bg-[#162332] hover:bg-[#22364c] border border-[#273d57] text-gray-300 hover:text-white transition flex items-center gap-1 text-xs font-bold">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              <span class="hidden lg:inline">Tracker ↗</span>
+            </a>
+            <button onclick="window.closePlayerProfileModal()" 
+                    title="Fechar (ESC)" 
+                    class="p-2 rounded-lg bg-[#162332] hover:bg-[#ff4655]/20 border border-[#273d57] hover:border-[#ff4655] text-gray-400 hover:text-white transition flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de Abas da Jogadora -->
+      <div class="bg-[#090e15] border-b border-[#182635] px-3.5 sm:px-6 flex items-center justify-between gap-2 overflow-x-auto flex-shrink-0 map-tabs-container">
+        <div class="flex items-center gap-1 sm:gap-2">
+          <button id="ppm-tab-btn-overview" onclick="window.backToAllMaps()"
+                  class="px-3.5 py-3 text-xs font-tactical font-bold border-b-2 border-[#ff4655] text-white flex items-center gap-1.5 transition whitespace-nowrap">
+            <span>📊</span>
+            <span>Rendimento por Mapa</span>
+          </button>
+          <button id="ppm-tab-btn-matches" onclick="window.setPlayerProfileTab('matches')"
+                  class="px-3.5 py-3 text-xs font-tactical font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-1.5 transition whitespace-nowrap">
+            <span>📜</span>
+            <span>Histórico Geral</span>
+            <span id="ppm-matches-count-badge" class="px-1.5 py-0.2 rounded-full text-[9px] bg-[#1e2e42] text-gray-300">10</span>
+          </button>
+          <button id="ppm-tab-btn-evolution" onclick="window.setPlayerProfileTab('evolution')"
+                  class="px-3.5 py-3 text-xs font-tactical font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-1.5 transition whitespace-nowrap">
+            <span>📈</span>
+            <span>Evolução & Tendência</span>
+          </button>
+          <button id="ppm-tab-btn-agents" onclick="window.setPlayerProfileTab('agents')"
+                  class="px-3.5 py-3 text-xs font-tactical font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-1.5 transition whitespace-nowrap">
+            <span>🎯</span>
+            <span>Melhores Agentes</span>
+          </button>
+          <button id="ppm-tab-btn-calculator" onclick="window.setPlayerProfileTab('calculator')"
+                  class="px-3.5 py-3 text-xs font-tactical font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-1.5 transition whitespace-nowrap">
+            <span>🧮</span>
+            <span>Cálculo Realizado & Fórmula</span>
+          </button>
+        </div>
+
+        <!-- Breadcrumb / Badge de Mapa Específico -->
+        <div id="ppm-active-map-pill" class="hidden items-center gap-2 py-1 px-3 rounded-full bg-sky-950/80 border border-sky-500/40 text-xs text-sky-300 flex-shrink-0">
+          <span>🗺️ Mapa Selecionado:</span>
+          <b id="ppm-active-map-name" class="text-white font-tactical uppercase">Ascent</b>
+          <button onclick="window.backToAllMaps()" class="ml-1 text-[10px] text-amber-300 hover:text-white underline">Ver todos os mapas</button>
+        </div>
+      </div>
+
+      <!-- Área com Scroll para o Conteúdo das Abas (Fullscreen) -->
+      <div id="ppm-tab-content" class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#070c12]">
+        <!-- Conteúdo dinâmico renderizado via JS -->
+      </div>
+
+    </div>
+  </div>
+
   <!-- MODAL: Banco de Jogadoras (Roster da Equipe & Autocomplete) -->
   <div id="roster-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-2.5 sm:p-4">
     <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-xl mx-auto p-4 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
       
       <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
-        <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
           <div class="p-1.5 sm:p-2 rounded bg-emerald-500/20 text-emerald-400 flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
             </svg>
           </div>
-          <div class="min-w-0">
-            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight truncate">BANCO DE JOGADORAS (ROSTER)</h3>
-            <p class="text-[10px] text-gray-400 leading-none">Cadastre e gerencie nicks, K/D e agentes para autocomplete em todos os mapas</p>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight break-words">BANCO DE JOGADORAS (ROSTER)</h3>
+            <p class="text-[9px] sm:text-[10px] text-gray-400 leading-tight mt-0.5 break-words">Cadastre e gerencie nicks, K/D e agentes para autocomplete em todos os mapas</p>
           </div>
         </div>
-        <button onclick="window.closeRosterModal()" class="text-gray-400 hover:text-white p-1">
+        <button onclick="window.closeRosterModal()" class="text-gray-400 hover:text-white p-1 flex-shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
 
       <!-- Formulário Rápido para Adicionar Jogadora -->
       <div class="mt-3 bg-[#131d2a] border border-[#203043] rounded-lg p-3">
-        <h4 class="text-xs font-tactical font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
+        <h4 class="text-xs font-tactical font-bold text-emerald-400 mb-2 flex items-center gap-1.5 flex-wrap">
           <span>+</span> Cadastrar Nova Jogadora no Time
         </h4>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -606,18 +825,18 @@
     <div class="tactical-card bg-[#101822] border border-[#2b3c4f] rounded-xl w-full max-w-lg mx-auto p-3.5 sm:p-5 shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
       
       <div class="flex items-center justify-between pb-2.5 border-b border-[#1e2c3c]">
-        <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
           <div class="p-1.5 sm:p-2 rounded bg-[#25D366]/20 text-[#25D366] flex-shrink-0">
             <svg class="w-4 h-4 sm:w-5 sm:h-5 fill-current" viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
             </svg>
           </div>
-          <div class="min-w-0">
-            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight truncate">RESUMO PARA WHATSAPP</h3>
-            <p class="text-[10px] text-gray-400 leading-none">Formatado para o grupo do time</p>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-sm sm:text-base font-tactical font-bold text-white leading-tight break-words">RESUMO PARA WHATSAPP</h3>
+            <p class="text-[9px] sm:text-[10px] text-gray-400 leading-tight mt-0.5 break-words">Formatado para o grupo do time</p>
           </div>
         </div>
-        <button onclick="window.closeWhatsappModal()" class="text-gray-400 hover:text-white p-1">
+        <button onclick="window.closeWhatsappModal()" class="text-gray-400 hover:text-white p-1 flex-shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -625,7 +844,7 @@
       </div>
 
       <!-- Abas: Mapa Atual vs Pool do Campeonato vs Todos os Mapas -->
-      <div class="mt-2.5 flex gap-1.5 border-b border-[#1e2c3c] pb-2 overflow-x-auto">
+      <div class="mt-2.5 flex gap-1.5 border-b border-[#1e2c3c] pb-2 overflow-x-auto map-tabs-container">
         <button id="tab-btn-current-map" onclick="window.renderWhatsappSummary('current')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#ff4655] text-white whitespace-nowrap">Mapa Atual</button>
         <button id="tab-btn-meta-maps" onclick="window.renderWhatsappSummary('meta')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142] whitespace-nowrap">🏆 Pool Campeonato (6)</button>
         <button id="tab-btn-all-maps" onclick="window.renderWhatsappSummary('all')" class="px-2.5 py-1 text-xs font-tactical font-bold rounded bg-[#16202c] text-gray-300 hover:bg-[#223142] whitespace-nowrap">📦 Todos os Mapas (11)</button>
@@ -667,8 +886,8 @@
   </div>
 
   <!-- App Scripts (Universal: funciona tanto via duplo-clique quanto via servidor web) -->
-  <script src="js/data.js?v=1.0.1"></script>
-  <script src="js/firebase-config.js?v=1.0.1"></script>
-  <script src="js/app.js?v=1.0.1"></script>
+  <script src="js/data.js?v=1.0.2"></script>
+  <script src="js/firebase-config.js?v=1.0.2"></script>
+  <script src="js/app.js?v=1.0.2"></script>
 </body>
 </html>
