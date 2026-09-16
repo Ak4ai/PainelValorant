@@ -805,7 +805,8 @@ window.executeManualSwap = function(targetIndex) {
   showToast(`Posição trocada entre ${labelSrc} e ${labelTgt} com sucesso!`, 'success');
 };
 
-// Escala automaticamente por pontuação do maior para o menor
+// 1. Organiza por pontuação: APENAS reordena as jogadoras do maior para o menor rendimento (mantendo os agentes)
+// Não considera Reserva 3 e 4 que não têm jogadora cadastrada
 window.autoScaleLineupByRating = function() {
   const currentMapId = state.activeMapId;
   const currentPlayers = state.lineups[currentMapId];
@@ -814,13 +815,15 @@ window.autoScaleLineupByRating = function() {
     return;
   }
 
-  const sorted = [...currentPlayers].map((p, origIdx) => {
+  // Considera APENAS as 7 vagas ativas (5 Titulares + 2 Reservas Principais). Reserva 3 e 4 nunca entram na disputa!
+  const activePool = currentPlayers.slice(0, 7).map((p, origIdx) => {
     const cleanName = (p.name || '').trim();
     const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
-    const scoreStr = p.rendimento || inRoster.mapRatings?.[currentMapId.toLowerCase()] || inRoster.overallRating || '7.0';
-    let numericScore = parseFloat(String(scoreStr).replace(',', '.')) || 0;
+    const scoreStr = p.rendimento || inRoster.mapRatings?.[currentMapId.toLowerCase()] || inRoster.overallRating || '';
+    let numericScore = parseFloat(String(scoreStr).replace(',', '.'));
+    if (isNaN(numericScore)) numericScore = 0;
     if (numericScore > 10 && numericScore <= 100) numericScore = numericScore / 10;
-    const kdNum = parseFloat(String(p.kd || inRoster.kd || '1.0').replace(',', '.')) || 0;
+    const kdNum = parseFloat(String(p.kd || inRoster.kd || '0').replace(',', '.')) || 0;
 
     return {
       player: { ...p },
@@ -830,38 +833,34 @@ window.autoScaleLineupByRating = function() {
     };
   });
 
-  // Ordena decrescente: maior nota primeiro; se empate, maior K/D
-  sorted.sort((a, b) => {
+  // Ordena decrescente: maior rendimento primeiro; desempate pelo K/D
+  activePool.sort((a, b) => {
     if (b.score !== a.score) {
       return b.score - a.score;
     }
     return b.kd - a.kd;
   });
 
-  const newPlayers = sorted.map((item, newIdx) => {
+  // Reordena as jogadoras preservando 100% seus agentes escolhidos (sem forçar novos agentes)
+  const reorderedActive = activePool.map((item, newIdx) => {
     const p = item.player;
     p.id = newIdx + 1;
 
+    // Se uma jogadora foi promovida de reserva para titular e não tinha titular configurado, aproveita o flex1
     if (newIdx < 5) {
-      if (!p.titular || p.titular === '') {
-        p.titular = p.flex1 || p.mostPlayed?.[0] || 'Jett';
-      }
-      if (!p.reserva || p.reserva === '') {
-        p.reserva = p.flex2 || p.mostPlayed?.[1] || 'Omen';
-      }
+      if (!p.titular && p.flex1) p.titular = p.flex1;
+      if (!p.reserva && p.flex2) p.reserva = p.flex2;
     } else {
-      if (!p.flex1 || p.flex1 === '') {
-        p.flex1 = p.titular || p.mostPlayed?.[0] || 'Jett';
-      }
-      if (!p.flex2 || p.flex2 === '') {
-        p.flex2 = p.reserva || p.mostPlayed?.[1] || 'Omen';
-      }
-      if (!p.flex3 || p.flex3 === '') {
-        p.flex3 = p.mostPlayed?.[2] || 'Killjoy';
-      }
+      // Se uma titular foi para a reserva e não tinha flex configurado, aproveita o titular/reserva
+      if (!p.flex1 && p.titular) p.flex1 = p.titular;
+      if (!p.flex2 && p.reserva) p.flex2 = p.reserva;
     }
     return p;
   });
+
+  // Preserva intactas as vagas extras (Reserva 3 e 4) nos índices 7 e 8
+  const extraSlots = currentPlayers.slice(7);
+  const newPlayers = [...reorderedActive, ...extraSlots];
 
   state.lineups[currentMapId] = newPlayers;
   saveCurrentState();
@@ -871,7 +870,159 @@ window.autoScaleLineupByRating = function() {
   });
 
   renderPlayersList();
-  showToast('🏆 Escalação organizada da maior para a menor pontuação!', 'success');
+  showToast('🏆 Jogadoras organizadas da maior para a menor pontuação! Agentes mantidos.', 'success');
+};
+
+// 2. Organizar e Escalar: Reordena as jogadoras por pontuação E escala os melhores agentes recomendados da comp meta
+// (Não considera Reserva 3 e 4 que não têm jogadoras)
+window.autoOrganizeAndAssignComps = function() {
+  const currentMapId = state.activeMapId;
+  const currentPlayers = state.lineups[currentMapId];
+  if (!Array.isArray(currentPlayers) || currentPlayers.length < 5) {
+    showToast('Não há jogadoras suficientes para organizar e escalar.', 'warning');
+    return;
+  }
+
+  // Considera APENAS as 7 jogadoras ativas (5 Titulares + 2 Reservas Principais)
+  const activePool = currentPlayers.slice(0, 7).map((p, origIdx) => {
+    const cleanName = (p.name || '').trim();
+    const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
+    const scoreStr = p.rendimento || inRoster.mapRatings?.[currentMapId.toLowerCase()] || inRoster.overallRating || '';
+    let numericScore = parseFloat(String(scoreStr).replace(',', '.'));
+    if (isNaN(numericScore)) numericScore = 0;
+    if (numericScore > 10 && numericScore <= 100) numericScore = numericScore / 10;
+    const kdNum = parseFloat(String(p.kd || inRoster.kd || '0').replace(',', '.')) || 0;
+
+    return {
+      player: { ...p },
+      score: numericScore,
+      kd: kdNum,
+      inRoster,
+      origIdx
+    };
+  });
+
+  // Ordena decrescente: Top 5 viram titulares, 2 seguintes viram reservas
+  activePool.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.kd - a.kd;
+  });
+
+  const titulares = activePool.slice(0, 5).map(item => item.player);
+  const reservas = activePool.slice(5, 7).map(item => item.player);
+
+  // Obtém os 5 agentes da composição meta recomendada do mapa ativo
+  const mapPreset = getMapTacticalPreset(currentMapId);
+  const metaAgents = (mapPreset && Array.isArray(mapPreset.agents) && mapPreset.agents.length === 5)
+    ? [...mapPreset.agents]
+    : ['Jett', 'Sova', 'Omen', 'Killjoy', 'KAY/O'];
+
+  // Função de afinidade da jogadora com um agente do meta
+  function getAffinity(player, agentName) {
+    let score = 10;
+    const cleanAgent = (agentName || '').trim().toLowerCase();
+    const mostPlayed = (player.mostPlayed || []).map(a => (a || '').toLowerCase());
+    const rosterObj = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (player.name || '').trim().toLowerCase()) || {};
+    const rosterMostPlayed = (rosterObj.mostPlayed || []).map(a => (a || '').toLowerCase());
+    const allPlayed = [...new Set([...mostPlayed, ...rosterMostPlayed])];
+
+    if (allPlayed[0] === cleanAgent) score += 100;
+    else if (allPlayed[1] === cleanAgent) score += 80;
+    else if (allPlayed[2] === cleanAgent) score += 60;
+    else if (allPlayed.includes(cleanAgent)) score += 40;
+
+    if (player.titular && player.titular.toLowerCase() === cleanAgent) score += 50;
+    if (player.reserva && player.reserva.toLowerCase() === cleanAgent) score += 25;
+    if (player.flex1 && player.flex1.toLowerCase() === cleanAgent) score += 35;
+
+    const agentRole = (getAgentRole(agentName) || '').toLowerCase();
+    const playerRole = (player.role || rosterObj.role || '').toLowerCase();
+    if (agentRole && playerRole && agentRole === playerRole) score += 45;
+
+    return score;
+  }
+
+  // Gera todas as permutações de 5 agentes para encontrar o casamento ótimo
+  function getPermutations(arr) {
+    if (arr.length <= 1) return [arr];
+    const perms = [];
+    for (let i = 0; i < arr.length; i++) {
+      const current = arr[i];
+      const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const p of getPermutations(remaining)) {
+        perms.push([current, ...p]);
+      }
+    }
+    return perms;
+  }
+
+  const allPerms = getPermutations(metaAgents);
+  let bestScore = -1;
+  let bestPerm = metaAgents;
+
+  allPerms.forEach(perm => {
+    let sumScore = 0;
+    for (let i = 0; i < 5; i++) {
+      sumScore += getAffinity(titulares[i], perm[i]);
+    }
+    if (sumScore > bestScore) {
+      bestScore = sumScore;
+      bestPerm = perm;
+    }
+  });
+
+  // Atribui os agentes meta aos 5 titulares (sem conflitos)
+  titulares.forEach((p, idx) => {
+    p.id = idx + 1;
+    const assignedTitular = bestPerm[idx];
+    p.titular = assignedTitular;
+
+    // Define agente Reserva: busca o segundo agente favorito que seja DIFERENTE do titular
+    const rosterObj = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (p.name || '').trim().toLowerCase()) || {};
+    const candidatePool = [
+      ...(p.mostPlayed || []),
+      ...(rosterObj.mostPlayed || []),
+      p.reserva,
+      p.flex1,
+      p.flex2
+    ].filter(Boolean);
+
+    const validReserva = candidatePool.find(a => a.toLowerCase() !== assignedTitular.toLowerCase());
+    if (validReserva) {
+      p.reserva = validReserva;
+    } else {
+      const role = getAgentRole(assignedTitular);
+      const sameRoleAgents = (ALL_AGENTS || []).filter(a => a.role === role && a.name.toLowerCase() !== assignedTitular.toLowerCase());
+      p.reserva = sameRoleAgents[0]?.name || (assignedTitular === 'Omen' ? 'Brimstone' : 'Omen');
+    }
+  });
+
+  // Configura as 2 Reservas Principais
+  reservas.forEach((p, rIdx) => {
+    p.id = rIdx + 6;
+    p.isSub = true;
+    const rosterObj = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (p.name || '').trim().toLowerCase()) || {};
+    const favs = [...new Set([...(p.mostPlayed || []), ...(rosterObj.mostPlayed || []), p.flex1, p.titular, p.flex2, p.reserva, p.flex3].filter(Boolean))];
+
+    p.flex1 = favs[0] || 'Omen';
+    p.flex2 = favs[1] || (p.flex1 === 'Killjoy' ? 'Cypher' : 'Killjoy');
+    p.flex3 = favs[2] || (p.flex1 === 'Sova' ? 'Fade' : 'Sova');
+  });
+
+  // Preserva intactas as vagas extras (Reserva 3 e 4) nos índices 7 e 8
+  const extraSlots = currentPlayers.slice(7);
+  const finalLineup = [...titulares, ...reservas, ...extraSlots];
+
+  state.lineups[currentMapId] = finalLineup;
+  saveCurrentState();
+
+  finalLineup.forEach((p, idx) => {
+    syncSavePlayer(currentMapId, idx, p, state.lineups);
+  });
+
+  renderPlayersList();
+  const mapName = (MAPS_DATA.find(m => m.id === currentMapId) || {}).name || currentMapId;
+  showToast(`🎯 Elenco organizado e escalado com o Meta de ${mapName}!`, 'success');
 };
 
 // Renderiza a lista das 5 Jogadoras Titulares e 2 Reservas Flex
@@ -1349,6 +1500,7 @@ function renderPlayersList() {
                   `}
                 </button>
                 <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${actualIndex}">
+                  ${rIdx >= 2 ? `<div class="mb-1"><span class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-gray-800/90 text-amber-400/80 border border-amber-500/20">Vaga Extra (Sem Player)</span></div>` : ''}
                   <input type="text" 
                          id="player-name-input-${actualIndex}"
                          value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
@@ -5679,8 +5831,14 @@ function generateWhatsappMapText(mapId) {
     text += `${idx + 1}️⃣ *${p.name || `Player ${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
   });
 
-  // 4 Reservas
-  const reserves = players.slice(5);
+  // Reservas Ativas (Ignora Reserva 3 e 4)
+  const reserves = players.slice(5).filter((p, idx) => {
+    if (idx >= 2) return false; // NUNCA considera Reserva 3 e 4
+    const clean = (p.name || '').trim();
+    if (!clean || clean === 'Reserva 3' || clean === 'Reserva 4') return false;
+    if (clean.startsWith('Reserva ') && !p.flex1 && !p.flex2 && !p.flex3 && !p.rendimento) return false;
+    return true;
+  });
   if (reserves.length > 0) {
     text += `\n👥 *RESERVAS & FLEX:*\n`;
     reserves.forEach((p, idx) => {
@@ -5717,7 +5875,13 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
       const rend = p.rendimento ? ` [${p.rendimento}/10]` : '';
       text += `• *${p.name || `P${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
     });
-    const reserves = players.slice(5);
+    const reserves = players.slice(5).filter((r, rIdx) => {
+      if (rIdx >= 2) return false;
+      const clean = (r.name || '').trim();
+      if (!clean || clean === 'Reserva 3' || clean === 'Reserva 4') return false;
+      if (clean.startsWith('Reserva ') && !r.flex1 && !r.flex2 && !r.flex3 && !r.rendimento) return false;
+      return true;
+    });
     if (reserves.length > 0) {
       const flexList = reserves.map((r, rIdx) => {
         const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
@@ -5744,7 +5908,13 @@ function generateWhatsappGroupedMapsText(onlyMeta = false) {
         const rend = p.rendimento ? ` [${p.rendimento}/10]` : '';
         text += `• *${p.name || `P${idx + 1}`}*${kd}${rend}: ${titular} ${reserva}\n`;
       });
-      const reserves = players.slice(5);
+      const reserves = players.slice(5).filter((r, rIdx) => {
+        if (rIdx >= 2) return false;
+        const clean = (r.name || '').trim();
+        if (!clean || clean === 'Reserva 3' || clean === 'Reserva 4') return false;
+        if (clean.startsWith('Reserva ') && !r.flex1 && !r.flex2 && !r.flex3 && !r.rendimento) return false;
+        return true;
+      });
       if (reserves.length > 0) {
         const flexList = reserves.map((r, rIdx) => {
           const f = [r.flex1, r.flex2, r.flex3].filter(Boolean).join('/');
@@ -6766,8 +6936,19 @@ function renderTeamAnalyticsView() {
     };
   });
 
-  // Processa as 4 reservas
-  const reservas = currentLineup.slice(5).map((p, rIdx) => {
+  // Processa APENAS as reservas ativas que têm jogadora real (NUNCA considera Reserva 3 e 4)
+  const reservas = currentLineup.slice(5).filter((p, rIdx) => {
+    if (rIdx >= 2) return false; // NUNCA considera Reserva 3 e Reserva 4 (sem jogadora)
+    const cleanName = (p.name || '').trim();
+    if (!cleanName) return false;
+    if (cleanName === 'Reserva 3' || cleanName === 'Reserva 4') return false;
+    // Se for nome genérico default sem dados/player cadastrado, não polui as estatísticas
+    const isGeneric = (cleanName === 'Reserva 1' || cleanName === 'Reserva 2');
+    const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase());
+    const hasData = cleanName.includes('#') || inRoster || (p.flex1 || p.flex2 || p.flex3 || p.rendimento || p.kd);
+    if (isGeneric && !hasData) return false;
+    return true;
+  }).map((p, rIdx) => {
     const idx = rIdx + 5;
     const cleanName = (p.name || '').trim() || `Reserva ${rIdx + 1}`;
     const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
@@ -7566,7 +7747,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-xs font-tactical font-black text-emerald-400 uppercase tracking-wider truncate">🔄 Flex & Suplentes</span>
                 </div>
                 <span class="text-[9px] font-mono text-emerald-300 bg-emerald-950/70 border border-emerald-500/30 px-1.5 py-0.2 rounded font-bold flex-shrink-0">
-                  4 Reservas • 3 Flex Cada
+                  ${reservas.length} ${reservas.length === 1 ? 'Reserva' : 'Reservas'} • 3 Flex Cada
                 </span>
               </div>
 
@@ -7574,7 +7755,7 @@ function renderTeamAnalyticsView() {
               <div class="my-2 bg-[#081510] p-2 rounded-lg border border-emerald-500/20">
                 <span class="text-[9px] uppercase font-tactical text-emerald-300 font-bold block">Status da Função:</span>
                 <span class="text-[11px] text-white font-bold block mt-0.5 break-words">
-                  ⚡ Alta Adaptabilidade (12 Slots Flex Disponíveis)
+                  ⚡ Alta Adaptabilidade (${reservas.length * 3} Slots Flex Disponíveis)
                 </span>
               </div>
 
@@ -7593,7 +7774,7 @@ function renderTeamAnalyticsView() {
                   <span>💡</span> O "Porquê" Estratégico:
                 </span>
                 <p class="text-[11px] text-gray-300 leading-relaxed font-sans break-words">
-                  Cada mapa exige um arquétipo diferente: Sunset pede duplo iniciador, Bind se beneficia de dupla controladora. Ter <b>quatro reservas preparadas com 3 bonecos flex cada (12 opções ao todo)</b> permite mudar a composição para surpreender os adversários sem quebrar a estrutura da equipe.
+                  Cada mapa exige um arquétipo diferente: Sunset pede duplo iniciador, Bind se beneficia de dupla controladora. Ter <b>${reservas.length} reservas preparadas com 3 bonecos flex cada (${reservas.length * 3} opções ao todo)</b> permite mudar a composição para surpreender os adversários sem quebrar a estrutura da equipe.
                 </p>
               </div>
 
@@ -7601,7 +7782,7 @@ function renderTeamAnalyticsView() {
               <div class="mt-2 bg-[#0d141f] p-2 rounded-lg border border-[#182638] text-[10px] space-y-0.5">
                 <b class="text-amber-400 block font-tactical">Proteção Total:</b>
                 <p class="text-gray-400 leading-relaxed break-words">
-                  Com 12 opções de adaptação no banco de reservas, o time está blindado contra ausências de última hora, cansaço ou penalidades em torneios longos.
+                  Com ${reservas.length * 3} opções de adaptação no banco de reservas, o time está blindado contra ausências de última hora, cansaço ou penalidades em torneios longos.
                 </p>
               </div>
             </div>
@@ -8286,7 +8467,9 @@ window.startTeamSync = async function(force = false) {
   const currentLineup = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
   const playersToSync = [];
   currentLineup.forEach((p, idx) => {
+    if (idx >= 7) return; // NUNCA considera Reserva 3 e 4
     const clean = (p.name || '').trim();
+    if (clean === 'Reserva 3' || clean === 'Reserva 4') return;
     if (clean && clean.includes('#')) {
       playersToSync.push({
         index: idx,
@@ -8570,7 +8753,14 @@ function renderSyncView() {
 
   const mgr = state.syncManager;
   const currentLineup = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
-  const allTeamPlayers = currentLineup.map((p, idx) => {
+  const allTeamPlayers = currentLineup
+    .filter((p, idx) => {
+      if (idx >= 7) return false; // NUNCA considera Reserva 3 e 4
+      const clean = (p.name || '').trim();
+      if (clean === 'Reserva 3' || clean === 'Reserva 4') return false;
+      return true;
+    })
+    .map((p, idx) => {
     const clean = (p.name || '').trim();
     const inR = (state.roster || []).find(r => r.name && r.name.toLowerCase() === clean.toLowerCase()) || {};
     const stats = mgr.playerStats[clean] || {};

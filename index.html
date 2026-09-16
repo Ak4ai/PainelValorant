@@ -237,9 +237,13 @@
           <h3 class="text-sm sm:text-lg font-tactical font-bold text-white tracking-wider break-words">ESCALAÇÃO DO TIME NO MAPA</h3>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-          <button onclick="window.autoScaleLineupByRating()" title="Escalar automaticamente as jogadoras organizadas por pontuação/rendimento no mapa do maior para o menor" class="btn-tactical bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold border border-amber-400/50 text-xs px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition shadow-lg flex-shrink-0">
+          <button id="btn-scale-by-rating" onclick="window.autoScaleLineupByRating()" title="Organizar as jogadoras por pontuação/rendimento no mapa do maior para o menor (mantendo os agentes atuais)" class="btn-tactical bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold border border-amber-400/50 text-xs px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition shadow-lg flex-shrink-0">
             <span>🏆</span>
-            <span class="whitespace-nowrap">Escalar por Pontuação</span>
+            <span class="whitespace-nowrap">Organizar por Pontuação</span>
+          </button>
+          <button id="btn-organize-and-scale" onclick="window.autoOrganizeAndAssignComps()" title="Organizar por pontuação E escalar automaticamente a composição meta de agentes recomendada para o mapa (ignora reservas 3 e 4)" class="btn-tactical bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-500 hover:to-emerald-600 text-white font-bold border border-teal-400/50 text-xs px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition shadow-lg flex-shrink-0">
+            <span>🎯</span>
+            <span class="whitespace-nowrap">Organizar & Escalar</span>
           </button>
           <button onclick="window.resetCurrentMapBuild()" title="Limpar agentes titulares e reservas escalados neste mapa" class="btn-tactical bg-[#16202c] hover:bg-red-950/60 text-gray-300 hover:text-red-400 border border-[#283b50] hover:border-red-500/50 text-xs font-semibold px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition flex-shrink-0">
             <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -315,10 +319,10 @@
             <span class="w-1.5 h-4 bg-amber-400 flex-shrink-0"></span>
             <h4 class="text-sm sm:text-base font-tactical font-bold text-white tracking-wider flex items-center gap-2 flex-wrap break-words">
               <span>JOGADORAS RESERVAS (SUPLENTES & FLEX)</span>
-              <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30 flex-shrink-0">4 RESERVAS • 3 FLEX CADA</span>
+              <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30 flex-shrink-0">2 RESERVAS PRINCIPAIS • 3 FLEX CADA</span>
             </h4>
           </div>
-          <span class="text-[10px] text-gray-400 break-words">Agentes Flex para adaptação tática e cobertura na composição (4 jogadoras reservas • 3 vagas Flex cada)</span>
+          <span class="text-[10px] text-gray-400 break-words">Agentes Flex para adaptação tática e cobertura na composição (2 jogadoras reservas ativas • 3 vagas Flex cada)</span>
         </div>
 
         <div id="reserves-list-container" class="space-y-3">
@@ -967,8 +971,8 @@
   </div>
 
   <!-- App Scripts (Universal: funciona tanto via duplo-clique quanto via servidor web) -->
-  <script src="js/data.js?v=1.0.2"></script>
-  <script src="js/firebase-config.js?v=1.0.2"></script>
-  <script src="js/app.js?v=1.0.2"></script>
+  <script src="js/data.js?v=1.0.3"></script>
+  <script src="js/firebase-config.js?v=1.0.3"></script>
+  <script src="js/app.js?v=1.0.3"></script>
 </body>
 </html>
