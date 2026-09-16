@@ -219,3 +219,30 @@ h1, h2, h3, h4, h5, h6, .font-tactical {
 .safe-bottom-bar {
   padding-bottom: max(0.65rem, env(safe-area-inset-bottom, 0.65rem));
 }
+
+/* Alça tática para troca manual de posição (Borda Direita) */
+.swap-edge-handle {
+  min-width: 2.2rem;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.swap-edge-handle:hover {
+  background-color: rgba(245, 158, 11, 0.15);
+}
+.swap-edge-handle:active {
+  transform: scale(0.95);
+}
+.swap-card-active {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.45) !important;
+  animation: swapPulse 2s infinite ease-in-out;
+}
+@keyframes swapPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 28px rgba(245, 158, 11, 0.6); }
+}
+.writing-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}

@@ -565,6 +565,30 @@ const DEFAULT_ROSTER = [
   { name: 'WaylayRush#BR1', kd: '1.24', mostPlayed: ['Waylay', 'Jett', 'Reyna'], role: 'Duelista', overallRating: '8.2' }
 ];
 
+// Galeria de Avatares Táticos Oficiais do Sistema (Agentes, Funções e Ranques)
+const SYSTEM_AVATARS = {
+  agents: ALL_AGENTS.map(a => ({
+    id: `agent-${a.name.toLowerCase()}`,
+    name: a.name,
+    category: 'agents',
+    role: a.role,
+    url: a.icon
+  })),
+  roles: [
+    { id: 'role-duelista', name: 'Duelista', category: 'roles', role: 'Função', url: 'https://media.valorant-api.com/agents/roles/dbe8757e-9e92-4ed4-b39f-9dfc589691d4/displayicon.png' },
+    { id: 'role-iniciador', name: 'Iniciador', category: 'roles', role: 'Função', url: 'https://media.valorant-api.com/agents/roles/1b47007f-4cc4-8853-a311-968311a6ec37/displayicon.png' },
+    { id: 'role-controlador', name: 'Controlador', category: 'roles', role: 'Função', url: 'https://media.valorant-api.com/agents/roles/4ee40330-ecdd-4f2f-98a4-e2fb4e92bab5/displayicon.png' },
+    { id: 'role-sentinela', name: 'Sentinela', category: 'roles', role: 'Função', url: 'https://media.valorant-api.com/agents/roles/5fc02f99-409a-4442-a060-eb935966329c/displayicon.png' }
+  ],
+  ranks: [
+    { id: 'rank-radiante', name: 'Radiante', category: 'ranks', role: 'Ranque', url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/27/largeicon.png' },
+    { id: 'rank-imortal', name: 'Imortal', category: 'ranks', role: 'Ranque', url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/24/largeicon.png' },
+    { id: 'rank-ascendente', name: 'Ascendente', category: 'ranks', role: 'Ranque', url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/21/largeicon.png' },
+    { id: 'rank-diamante', name: 'Diamante', category: 'ranks', role: 'Ranque', url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/18/largeicon.png' },
+    { id: 'rank-platina', name: 'Platina', category: 'ranks', role: 'Ranque', url: 'https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/15/largeicon.png' }
+  ]
+};
+
 // Compatibilidade Universal (Global Window)
 window.ValorantData = {
   AGENTS,
@@ -572,9 +596,11 @@ window.ValorantData = {
   MAPS_DATA,
   DEFAULT_PLAYERS,
   DEFAULT_ROSTER,
+  SYSTEM_AVATARS,
   getAgent,
   getAgentColor,
   getAgentRole,
   getAgentIcon
 };
+window.SYSTEM_AVATARS = SYSTEM_AVATARS;
 })();

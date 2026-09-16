@@ -41,6 +41,16 @@ const state = {
     selectedMapId: 'all',
     selectedRoleFilter: 'all'
   },
+  manualSwapSourceIndex: null, // Índice da jogadora em processo de troca manual
+  analyticsTableSort: {
+    column: 'slot', // 'slot', 'name', 'agent', 'comfort', 'kd', 'acs', 'rating', 'matches'
+    order: 'asc' // 'asc' ou 'desc'
+  },
+  playerAvatarModal: {
+    playerIndex: null,
+    selectedAvatarUrl: '',
+    currentTab: 'agents' // 'agents', 'roles', 'ranks'
+  },
   syncManager: {
     isRunning: false,
     isPaused: false,
@@ -598,6 +608,272 @@ window.resetCurrentMapBuild = function() {
   showToast(`Build de ${currentMap.name} resetada com sucesso!`, 'info');
 };
 
+// --------------------------------------------------------------------------
+// SUGESTÃO TÁTICA, SWAP MANUAL & ESCALAÇÃO POR PONTUAÇÃO
+// --------------------------------------------------------------------------
+
+// Retorna a composição recomendada pelo Otimizador Tático para o mapa ativo
+function getMapTacticalPreset(mapId) {
+  const cleanId = (mapId || '').toLowerCase();
+  if (typeof MAP_COMP_PRESETS !== 'undefined' && MAP_COMP_PRESETS[cleanId] && MAP_COMP_PRESETS[cleanId][0]) {
+    return MAP_COMP_PRESETS[cleanId][0];
+  }
+  return {
+    title: 'Meta Equilibrado',
+    agents: ['Sova', 'Omen', 'Killjoy', 'Jett', 'KAY/O']
+  };
+}
+
+// Detecta conflitos de agente repetido ou mesma função repetida entre os titulares
+function detectTitularConflicts(titulares, activeMapId) {
+  const conflicts = {};
+  const metaPreset = getMapTacticalPreset(activeMapId);
+  const metaAgents = metaPreset.agents || ['Sova', 'Omen', 'Killjoy', 'Jett', 'KAY/O'];
+
+  const currentTitularAgents = titulares.map(t => t.titular).filter(Boolean);
+  const missingMetaAgents = metaAgents.filter(ma => 
+    !currentTitularAgents.some(ca => ca.toLowerCase() === ma.toLowerCase())
+  );
+
+  const agentMap = {};
+  const roleMap = {};
+
+  titulares.forEach((p, idx) => {
+    if (!p.titular) return;
+    const ag = p.titular;
+    const role = getAgentRole(ag) || 'Flex';
+
+    const agKey = ag.toLowerCase();
+    if (!agentMap[agKey]) agentMap[agKey] = [];
+    agentMap[agKey].push({ idx, name: p.name || `Player ${p.id}`, agent: ag, role });
+
+    const roleKey = role.toLowerCase();
+    if (!roleMap[roleKey]) roleMap[roleKey] = [];
+    roleMap[roleKey].push({ idx, name: p.name || `Player ${p.id}`, agent: ag, role });
+  });
+
+  // 1. Conflito de Agente (mesmo agente escalado por duas jogadoras titulares)
+  Object.keys(agentMap).forEach(key => {
+    const list = agentMap[key];
+    if (list.length > 1) {
+      for (let i = 1; i < list.length; i++) {
+        const item = list[i];
+        const primary = list[0];
+        const pObj = titulares[item.idx];
+
+        let suggested = missingMetaAgents.find(ma => {
+          const mp = pObj.mostPlayed || [];
+          return mp.some(a => a && a.toLowerCase() === ma.toLowerCase());
+        }) || missingMetaAgents[0] || (item.agent === 'Jett' ? 'Raze' : 'Omen');
+
+        conflicts[item.idx] = {
+          type: 'agent',
+          agent: item.agent,
+          role: item.role,
+          otherName: primary.name,
+          suggestedAgent: suggested,
+          compTitle: metaPreset.title
+        };
+      }
+    }
+  });
+
+  // 2. Conflito de Função (mesma função repetida quando excede a comp recomendada do mapa)
+  Object.keys(roleMap).forEach(key => {
+    const list = roleMap[key];
+    if (list.length > 1) {
+      const sampleRole = list[0].role;
+      const metaRolesCount = metaAgents.filter(ma => (getAgentRole(ma) || '').toLowerCase() === key).length || 1;
+      if (list.length > metaRolesCount) {
+        for (let i = metaRolesCount; i < list.length; i++) {
+          const item = list[i];
+          if (conflicts[item.idx]) continue; // Se já tiver conflito de agente, prioriza ele
+          const primary = list[0];
+          const pObj = titulares[item.idx];
+
+          let suggested = missingMetaAgents.find(ma => {
+            return (getAgentRole(ma) || '').toLowerCase() !== key;
+          }) || missingMetaAgents[0] || 'Killjoy';
+
+          conflicts[item.idx] = {
+            type: 'role',
+            role: sampleRole,
+            otherName: primary.name,
+            suggestedAgent: suggested,
+            compTitle: metaPreset.title
+          };
+        }
+      }
+    }
+  });
+
+  return conflicts;
+}
+
+// Aplica a sugestão tática do otimizador substituindo o agente da jogadora
+window.applyTacticalSuggestion = function(playerIndex, newAgent, slotType = 'titular') {
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  // Garante que o mesmo agente não fique em titular e reserva
+  if (slotType === 'titular' && currentPlayers[playerIndex].reserva && currentPlayers[playerIndex].reserva.toLowerCase() === newAgent.toLowerCase()) {
+    currentPlayers[playerIndex].reserva = '';
+  }
+
+  currentPlayers[playerIndex][slotType] = newAgent;
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, playerIndex, currentPlayers[playerIndex], state.lineups);
+  renderPlayersList();
+  showToast(`Agente titular atualizado para ${newAgent} conforme Otimizador Tático!`, 'success');
+};
+
+// Alterna o modo de troca manual de posição ao clicar na borda direita do card
+window.toggleManualSwap = function(index, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  if (state.manualSwapSourceIndex === null) {
+    state.manualSwapSourceIndex = index;
+    renderPlayersList();
+    const label = index < 5 ? `Titular P${index + 1}` : `Reserva R${index - 4}`;
+    showToast(`Posição de ${label} selecionada! Agora clique no card com o qual deseja trocar.`, 'info');
+  } else if (state.manualSwapSourceIndex === index) {
+    state.manualSwapSourceIndex = null;
+    renderPlayersList();
+    showToast('Troca de posição cancelada.', 'info');
+  } else {
+    window.executeManualSwap(index);
+  }
+};
+
+// Executa a troca de posições entre duas jogadoras
+window.executeManualSwap = function(targetIndex) {
+  const srcIdx = state.manualSwapSourceIndex;
+  if (srcIdx === null || srcIdx === targetIndex) {
+    state.manualSwapSourceIndex = null;
+    renderPlayersList();
+    return;
+  }
+
+  const currentPlayers = state.lineups[state.activeMapId];
+  if (!currentPlayers || !currentPlayers[srcIdx] || !currentPlayers[targetIndex]) {
+    state.manualSwapSourceIndex = null;
+    renderPlayersList();
+    return;
+  }
+
+  const pSrc = currentPlayers[srcIdx];
+  const pTgt = currentPlayers[targetIndex];
+
+  // Inverte as posições no array
+  currentPlayers[srcIdx] = pTgt;
+  currentPlayers[targetIndex] = pSrc;
+
+  // Ajusta IDs
+  currentPlayers[srcIdx].id = srcIdx + 1;
+  currentPlayers[targetIndex].id = targetIndex + 1;
+
+  // Ajusta slots de titular e reserva conforme o novo índice
+  if (srcIdx < 5) {
+    if (!currentPlayers[srcIdx].titular) currentPlayers[srcIdx].titular = currentPlayers[srcIdx].flex1 || currentPlayers[srcIdx].mostPlayed?.[0] || 'Jett';
+    if (!currentPlayers[srcIdx].reserva) currentPlayers[srcIdx].reserva = currentPlayers[srcIdx].flex2 || currentPlayers[srcIdx].mostPlayed?.[1] || 'Omen';
+  } else {
+    if (!currentPlayers[srcIdx].flex1) currentPlayers[srcIdx].flex1 = currentPlayers[srcIdx].titular || currentPlayers[srcIdx].mostPlayed?.[0] || 'Jett';
+    if (!currentPlayers[srcIdx].flex2) currentPlayers[srcIdx].flex2 = currentPlayers[srcIdx].reserva || currentPlayers[srcIdx].mostPlayed?.[1] || 'Omen';
+    if (!currentPlayers[srcIdx].flex3) currentPlayers[srcIdx].flex3 = currentPlayers[srcIdx].mostPlayed?.[2] || 'Killjoy';
+  }
+
+  if (targetIndex < 5) {
+    if (!currentPlayers[targetIndex].titular) currentPlayers[targetIndex].titular = currentPlayers[targetIndex].flex1 || currentPlayers[targetIndex].mostPlayed?.[0] || 'Jett';
+    if (!currentPlayers[targetIndex].reserva) currentPlayers[targetIndex].reserva = currentPlayers[targetIndex].flex2 || currentPlayers[targetIndex].mostPlayed?.[1] || 'Omen';
+  } else {
+    if (!currentPlayers[targetIndex].flex1) currentPlayers[targetIndex].flex1 = currentPlayers[targetIndex].titular || currentPlayers[targetIndex].mostPlayed?.[0] || 'Jett';
+    if (!currentPlayers[targetIndex].flex2) currentPlayers[targetIndex].flex2 = currentPlayers[targetIndex].reserva || currentPlayers[targetIndex].mostPlayed?.[1] || 'Omen';
+    if (!currentPlayers[targetIndex].flex3) currentPlayers[targetIndex].flex3 = currentPlayers[targetIndex].mostPlayed?.[2] || 'Killjoy';
+  }
+
+  state.manualSwapSourceIndex = null;
+  saveCurrentState();
+  syncSavePlayer(state.activeMapId, srcIdx, currentPlayers[srcIdx], state.lineups);
+  syncSavePlayer(state.activeMapId, targetIndex, currentPlayers[targetIndex], state.lineups);
+
+  renderPlayersList();
+  const labelSrc = srcIdx < 5 ? `P${srcIdx + 1}` : `R${srcIdx - 4}`;
+  const labelTgt = targetIndex < 5 ? `P${targetIndex + 1}` : `R${targetIndex - 4}`;
+  showToast(`Posição trocada entre ${labelSrc} e ${labelTgt} com sucesso!`, 'success');
+};
+
+// Escala automaticamente por pontuação do maior para o menor
+window.autoScaleLineupByRating = function() {
+  const currentMapId = state.activeMapId;
+  const currentPlayers = state.lineups[currentMapId];
+  if (!Array.isArray(currentPlayers) || currentPlayers.length < 5) {
+    showToast('Não há jogadoras suficientes para organizar a escalação.', 'warning');
+    return;
+  }
+
+  const sorted = [...currentPlayers].map((p, origIdx) => {
+    const cleanName = (p.name || '').trim();
+    const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === cleanName.toLowerCase()) || {};
+    const scoreStr = p.rendimento || inRoster.mapRatings?.[currentMapId.toLowerCase()] || inRoster.overallRating || '7.0';
+    let numericScore = parseFloat(String(scoreStr).replace(',', '.')) || 0;
+    if (numericScore > 10 && numericScore <= 100) numericScore = numericScore / 10;
+    const kdNum = parseFloat(String(p.kd || inRoster.kd || '1.0').replace(',', '.')) || 0;
+
+    return {
+      player: { ...p },
+      score: numericScore,
+      kd: kdNum,
+      origIdx
+    };
+  });
+
+  // Ordena decrescente: maior nota primeiro; se empate, maior K/D
+  sorted.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    return b.kd - a.kd;
+  });
+
+  const newPlayers = sorted.map((item, newIdx) => {
+    const p = item.player;
+    p.id = newIdx + 1;
+
+    if (newIdx < 5) {
+      if (!p.titular || p.titular === '') {
+        p.titular = p.flex1 || p.mostPlayed?.[0] || 'Jett';
+      }
+      if (!p.reserva || p.reserva === '') {
+        p.reserva = p.flex2 || p.mostPlayed?.[1] || 'Omen';
+      }
+    } else {
+      if (!p.flex1 || p.flex1 === '') {
+        p.flex1 = p.titular || p.mostPlayed?.[0] || 'Jett';
+      }
+      if (!p.flex2 || p.flex2 === '') {
+        p.flex2 = p.reserva || p.mostPlayed?.[1] || 'Omen';
+      }
+      if (!p.flex3 || p.flex3 === '') {
+        p.flex3 = p.mostPlayed?.[2] || 'Killjoy';
+      }
+    }
+    return p;
+  });
+
+  state.lineups[currentMapId] = newPlayers;
+  saveCurrentState();
+
+  newPlayers.forEach((p, idx) => {
+    syncSavePlayer(currentMapId, idx, p, state.lineups);
+  });
+
+  renderPlayersList();
+  showToast('🏆 Escalação organizada da maior para a menor pontuação!', 'success');
+};
+
 // Renderiza a lista das 5 Jogadoras Titulares e 2 Reservas Flex
 function renderPlayersList() {
   const containerTitulares = document.getElementById('players-list-container');
@@ -646,6 +922,7 @@ function renderPlayersList() {
 
   const titulares = players.slice(0, 5);
   const reserves = players.slice(5, 9);
+  const titularConflicts = detectTitularConflicts(titulares, activeMap.id);
 
   // Renderiza os 5 Titulares
   containerTitulares.innerHTML = titulares.map((player, index) => {
@@ -662,6 +939,19 @@ function renderPlayersList() {
 
     const titularRoleClass = titularRole ? `role-badge-${titularRole.toLowerCase()}` : '';
     const reservaRoleClass = reservaRole ? `role-badge-${reservaRole.toLowerCase()}` : '';
+
+    const isSwapSource = state.manualSwapSourceIndex === index;
+    const isSwapActive = state.manualSwapSourceIndex !== null;
+    const cardBorder = isSwapSource 
+      ? 'border-amber-400 ring-2 ring-amber-400/80 bg-[#161a22] shadow-[0_0_20px_rgba(245,158,11,0.4)]' 
+      : (isSwapActive ? 'border-sky-500/40 hover:border-amber-400/70 hover:bg-[#111924] cursor-pointer' : 'border-[#203043]');
+
+    const swapBannerHtml = isSwapSource ? `
+      <div class="w-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-tactical font-bold px-2.5 py-1 rounded-md flex items-center justify-between mb-1.5">
+        <span>🔄 Posição de Origem Selecionada (P${player.id}). Clique no card destino para concluir.</span>
+        <button type="button" onclick="window.toggleManualSwap(${index}, event)" class="underline text-white text-[9px] hover:text-amber-200">Cancelar</button>
+      </div>
+    ` : '';
 
     const foundRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (player.name || '').trim().toLowerCase());
     let mapMatchCount = 0;
@@ -725,128 +1015,191 @@ function renderPlayersList() {
       </button>
     ` : '';
 
+    const conflict = titularConflicts[index];
+    let conflictCardHtml = '';
+    if (conflict) {
+      const sugAg = conflict.suggestedAgent;
+      const sugIcon = getAgentIcon(sugAg);
+      const sugRole = getAgentRole(sugAg);
+      const sugColor = getAgentColor(sugAg);
+      conflictCardHtml = `
+        <div class="w-full mt-2.5 p-2 sm:p-2.5 rounded-lg bg-[#181109] border border-amber-500/50 shadow-md animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+          <div class="flex items-start gap-2 min-w-0">
+            <span class="text-base flex-shrink-0 mt-0.5">💡</span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[9px] font-tactical font-black uppercase text-amber-300 bg-amber-950/90 px-1.5 py-0.2 rounded border border-amber-500/40">
+                  ${conflict.type === 'agent' ? 'Conflito de Agente' : 'Duplicação de Função'}
+                </span>
+                <span class="text-[10px] text-gray-300 font-sans">
+                  ${conflict.type === 'agent' 
+                    ? `Agente <b>${conflict.agent}</b> repetido com <b>${escapeHtml(conflict.otherName)}</b>` 
+                    : `Função <b>${conflict.role}</b> duplicada com <b>${escapeHtml(conflict.otherName)}</b>`}
+                </span>
+              </div>
+              <p class="text-[10px] text-amber-200/90 mt-0.5">
+                Otimizador Tático (${conflict.compTitle}) recomenda <b>${sugAg}</b> (${sugRole}) para balancear a escalação.
+              </p>
+            </div>
+          </div>
+          <button type="button"
+                  onclick="window.applyTacticalSuggestion(${index}, '${sugAg}', 'titular')"
+                  title="Trocar automaticamente para ${sugAg} conforme Otimizador Tático"
+                  class="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-tactical font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow flex-shrink-0 self-end sm:self-auto cursor-pointer">
+            <img src="${sugIcon}" alt="${sugAg}" class="w-4 h-4 rounded-full object-cover bg-black" style="border: 1px solid ${sugColor}">
+            <span>Trocar para ${sugAg}</span>
+          </button>
+        </div>
+      `;
+    }
+
+    const playerAvatarSrc = player.photoUrl || (foundRoster?.photoUrl) || '';
+
     return `
-      <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-[#203043] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0"
+      <div class="tactical-card p-2.5 sm:p-3 rounded-lg border ${cardBorder} flex flex-col gap-2 w-full min-w-0 relative"
            id="player-card-${index}"
-           style="position: relative; z-index: ${30 - index};">
+           ${isSwapActive && !isSwapSource ? `onclick="window.executeManualSwap(${index})"` : ''}
+           style="z-index: ${30 - index};">
         
-        <!-- Identificador, Nome & Autocomplete & Stats Tracker -->
-        <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
-          <div class="flex items-center gap-2 min-w-0">
-            <button type="button"
-                    onclick="window.openPlayerProfileModal(${index})"
-                    title="Ver Perfil Completo, Histórico de Partidas e Cálculo de ${escapeHtml(player.name || `Player ${player.id}`)}"
-                    class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#162332] hover:bg-[#ff4655]/25 border border-[#283b50] hover:border-[#ff4655] flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-[#ff4655] hover:text-white shadow-inner flex-shrink-0 transition-all cursor-pointer group relative">
-              <span>P${player.id}</span>
-              <span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border border-[#0d141e] flex items-center justify-center text-[7px] text-white opacity-80 group-hover:opacity-100 group-hover:scale-125 transition">📊</span>
-            </button>
-            <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${index}">
-              <input type="text" 
-                     id="player-name-input-${index}"
-                     value="${escapeHtml(player.name || `Player ${player.id}`)}" 
-                     oninput="window.handlePlayerNameInput(${index}, this.value)"
-                     onfocus="window.showRosterAutocomplete(${index})"
-                     onchange="window.updatePlayerName(${index}, this.value)"
-                     placeholder="Nick#TAG (ex: c0rt3z#0303)"
-                     autocomplete="off"
-                     class="w-full bg-[#0d141e] border border-[#223347] focus:border-[#ff4655] rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
-              
-              <!-- Dropdown de Autocomplete -->
-              <div id="roster-autocomplete-dropdown-${index}" 
-                   class="absolute left-0 top-full mt-1.5 z-50 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[#0d141e] border border-[#2a3e55] rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.95)] ring-1 ring-sky-500/40 overflow-hidden hidden animate-fade-in">
+        ${swapBannerHtml}
+
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
+          
+          <!-- Identificador, Avatar Customizado, Nome & Autocomplete & Stats Tracker -->
+          <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
+            <div class="flex items-center gap-2 min-w-0">
+              <button type="button"
+                      onclick="window.openPlayerProfileModal(${index})"
+                      title="Ver Perfil Completo, Histórico de Partidas e Alterar Foto de ${escapeHtml(player.name || `Player ${player.id}`)}"
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#162332] hover:bg-[#ff4655]/25 border border-[#283b50] hover:border-[#ff4655] flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-[#ff4655] hover:text-white shadow-inner flex-shrink-0 transition-all cursor-pointer group relative overflow-hidden">
+                ${playerAvatarSrc ? `
+                  <img src="${playerAvatarSrc}" alt="Avatar" class="w-full h-full object-cover">
+                  <span class="absolute bottom-0 right-0 bg-[#0d141e]/90 text-[7px] font-black text-amber-300 px-0.5 leading-none">P${player.id}</span>
+                ` : `
+                  <span>P${player.id}</span>
+                  <span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border border-[#0d141e] flex items-center justify-center text-[7px] text-white opacity-80 group-hover:opacity-100 group-hover:scale-125 transition">📊</span>
+                `}
+              </button>
+              <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${index}">
+                <input type="text" 
+                       id="player-name-input-${index}"
+                       value="${escapeHtml(player.name || `Player ${player.id}`)}" 
+                       oninput="window.handlePlayerNameInput(${index}, this.value)"
+                       onfocus="window.showRosterAutocomplete(${index})"
+                       onchange="window.updatePlayerName(${index}, this.value)"
+                       placeholder="Nick#TAG (ex: c0rt3z#0303)"
+                       autocomplete="off"
+                       class="w-full bg-[#0d141e] border border-[#223347] focus:border-[#ff4655] rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
+                
+                <!-- Dropdown de Autocomplete -->
+                <div id="roster-autocomplete-dropdown-${index}" 
+                     class="absolute left-0 top-full mt-1.5 z-50 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[#0d141e] border border-[#2a3e55] rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.95)] ring-1 ring-sky-500/40 overflow-hidden hidden animate-fade-in">
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats Tracker: Link, Estatísticas, K/D e Mais Jogadas -->
+            <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
+              ${trackerLinkHtml}
+              <button onclick="window.openPlayerProfileModal(${index})" 
+                      title="Ver página completa com estatísticas, histórico de partidas e cálculo"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-400 hover:text-white bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>Estatísticas</span>
+              </button>
+              <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
+                <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
+                <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
+                       onchange="window.updatePlayerKd(${index}, this.value)" 
+                       class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
+              </div>
+              <!-- Rendimento no Mapa -->
+              <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${ratingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition relative" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10) - Base: ${mapMatchCount > 0 ? `${mapMatchCount} partidas` : 'Amostragem estimada'}">
+                <span class="text-[9px] font-tactical font-bold ${ratingVisual.labelColor}">Rend:</span>
+                <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="--" 
+                       onchange="window.updatePlayerRendimento(${index}, this.value)" 
+                       class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${ratingVisual.valColor} placeholder-gray-600 focus:outline-none text-center">
+                ${mapMatchCount > 0 ? `<span class="text-[8px] font-mono text-gray-400 bg-[#141f2d] border border-[#22354a] px-1 py-0.2 rounded leading-none" title="Cálculo baseado em ${mapMatchCount} partida(s) em ${escapeHtml(activeMap.name)}">${mapMatchCount}j</span>` : ''}
+              </div>
+              <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker / Conforto)">
+                <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
+                ${mostPlayedIconsHtml}
+                ${addMostPlayedBtn}
               </div>
             </div>
           </div>
 
-          <!-- Stats Tracker: Link, Estatísticas, K/D e Mais Jogadas -->
-          <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
-            ${trackerLinkHtml}
-            <button onclick="window.openPlayerProfileModal(${index})" 
-                    title="Ver página completa com estatísticas, histórico de partidas e cálculo"
-                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-400 hover:text-white bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
-              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-              <span>Estatísticas</span>
-            </button>
-            <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
-              <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
-              <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
-                     onchange="window.updatePlayerKd(${index}, this.value)" 
-                     class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
-            </div>
-            <!-- Rendimento no Mapa -->
-            <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${ratingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition relative" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10) - Base: ${mapMatchCount > 0 ? `${mapMatchCount} partidas` : 'Amostragem estimada'}">
-              <span class="text-[9px] font-tactical font-bold ${ratingVisual.labelColor}">Rend:</span>
-              <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="--" 
-                     onchange="window.updatePlayerRendimento(${index}, this.value)" 
-                     class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${ratingVisual.valColor} placeholder-gray-600 focus:outline-none text-center">
-              ${mapMatchCount > 0 ? `<span class="text-[8px] font-mono text-gray-400 bg-[#141f2d] border border-[#22354a] px-1 py-0.2 rounded leading-none" title="Cálculo baseado em ${mapMatchCount} partida(s) em ${escapeHtml(activeMap.name)}">${mapMatchCount}j</span>` : ''}
-            </div>
-            <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker / Conforto)">
-              <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
-              ${mostPlayedIconsHtml}
-              ${addMostPlayedBtn}
-            </div>
-          </div>
-        </div>
-
-        <!-- Seleção de Agentes (Titular e Reserva) -->
-        <div class="grid grid-cols-2 gap-2 sm:gap-3 w-full flex-1 min-w-0">
-          
-          <!-- Botão Agente Titular -->
-          <div class="min-w-0">
-            <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block mb-0.5 truncate">
-              Titular ⭐
-            </label>
-            <button onclick="window.openAgentModal(${index}, 'titular')" 
-                    class="w-full min-w-0 flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-[#0d141e] border ${titularAgent ? 'border-[#ff4655]/50 shadow-[0_0_8px_rgba(255,70,85,0.18)]' : 'border-[#223347]'} hover:border-[#ff4655] transition text-left group">
-              ${titularAgent ? `
-                <div class="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 flex-1">
-                  <img src="${titularIcon}" alt="${titularAgent}" class="w-7 h-7 sm:w-8 sm:h-8 rounded object-cover bg-black/60 border shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${titularColor}">
-                  <div class="truncate min-w-0 flex-1">
-                    <div class="text-[11px] sm:text-xs font-bold text-white truncate leading-tight">${titularAgent}</div>
-                    <span class="text-[8px] sm:text-[9px] font-mono uppercase px-1 py-0.2 rounded ${titularRoleClass} inline-block truncate max-w-full leading-none mt-0.5">${titularRole}</span>
+          <!-- Seleção de Agentes (Titular e Reserva) -->
+          <div class="grid grid-cols-2 gap-2 sm:gap-3 w-full flex-1 min-w-0">
+            
+            <!-- Botão Agente Titular -->
+            <div class="min-w-0">
+              <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block mb-0.5 truncate">
+                Titular ⭐
+              </label>
+              <button onclick="window.openAgentModal(${index}, 'titular')" 
+                      class="w-full min-w-0 flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-[#0d141e] border ${titularAgent ? 'border-[#ff4655]/50 shadow-[0_0_8px_rgba(255,70,85,0.18)]' : 'border-[#223347]'} hover:border-[#ff4655] transition text-left group">
+                ${titularAgent ? `
+                  <div class="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 flex-1">
+                    <img src="${titularIcon}" alt="${titularAgent}" class="w-7 h-7 sm:w-8 sm:h-8 rounded object-cover bg-black/60 border shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${titularColor}">
+                    <div class="truncate min-w-0 flex-1">
+                      <div class="text-[11px] sm:text-xs font-bold text-white truncate leading-tight">${titularAgent}</div>
+                      <span class="text-[8px] sm:text-[9px] font-mono uppercase px-1 py-0.2 rounded ${titularRoleClass} inline-block truncate max-w-full leading-none mt-0.5">${titularRole}</span>
+                    </div>
                   </div>
-                </div>
-              ` : `
-                <div class="flex items-center gap-1.5 text-gray-400 py-0.5 truncate min-w-0">
-                  <div class="w-6 h-6 sm:w-7 sm:h-7 rounded border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28] flex-shrink-0">+</div>
-                  <span class="text-[11px] sm:text-xs font-medium text-gray-400 truncate">Titular...</span>
-                </div>
-              `}
-              <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition flex-shrink-0 ml-1 hidden xs:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </button>
+                ` : `
+                  <div class="flex items-center gap-1.5 text-gray-400 py-0.5 truncate min-w-0">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28] flex-shrink-0">+</div>
+                    <span class="text-[11px] sm:text-xs font-medium text-gray-400 truncate">Titular...</span>
+                  </div>
+                `}
+                <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition flex-shrink-0 ml-1 hidden xs:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Botão Agente Reserva -->
+            <div class="min-w-0">
+              <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block mb-0.5 truncate">
+                Reserva 🔄
+              </label>
+              <button onclick="window.openAgentModal(${index}, 'reserva')" 
+                      class="w-full min-w-0 flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-[#0d141e] border ${reservaAgent ? 'border-[#00f5d4]/40 shadow-[0_0_8px_rgba(0,245,212,0.15)]' : 'border-[#223347]'} hover:border-[#00f5d4] transition text-left group">
+                ${reservaAgent ? `
+                  <div class="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 flex-1">
+                    <img src="${reservaIcon}" alt="${reservaAgent}" class="w-7 h-7 sm:w-8 sm:h-8 rounded object-cover bg-black/60 border shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${reservaColor}">
+                    <div class="truncate min-w-0 flex-1">
+                      <div class="text-[11px] sm:text-xs font-bold text-white truncate leading-tight">${reservaAgent}</div>
+                      <span class="text-[8px] sm:text-[9px] font-mono uppercase px-1 py-0.2 rounded ${reservaRoleClass} inline-block truncate max-w-full leading-none mt-0.5">${reservaRole}</span>
+                    </div>
+                  </div>
+                ` : `
+                  <div class="flex items-center gap-1.5 text-gray-400 py-0.5 truncate min-w-0">
+                    <div class="w-6 h-6 sm:w-7 sm:h-7 rounded border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28] flex-shrink-0">+</div>
+                    <span class="text-[11px] sm:text-xs font-medium text-gray-400 truncate">Reserva...</span>
+                  </div>
+                `}
+                <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition flex-shrink-0 ml-1 hidden xs:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+            </div>
+
           </div>
 
-          <!-- Botão Agente Reserva -->
-          <div class="min-w-0">
-            <label class="text-[9px] sm:text-[10px] uppercase font-tactical tracking-wider text-gray-400 block mb-0.5 truncate">
-              Reserva 🔄
-            </label>
-            <button onclick="window.openAgentModal(${index}, 'reserva')" 
-                    class="w-full min-w-0 flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-[#0d141e] border ${reservaAgent ? 'border-[#00f5d4]/40 shadow-[0_0_8px_rgba(0,245,212,0.15)]' : 'border-[#223347]'} hover:border-[#00f5d4] transition text-left group">
-              ${reservaAgent ? `
-                <div class="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 flex-1">
-                  <img src="${reservaIcon}" alt="${reservaAgent}" class="w-7 h-7 sm:w-8 sm:h-8 rounded object-cover bg-black/60 border shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform" style="border-color: ${reservaColor}">
-                  <div class="truncate min-w-0 flex-1">
-                    <div class="text-[11px] sm:text-xs font-bold text-white truncate leading-tight">${reservaAgent}</div>
-                    <span class="text-[8px] sm:text-[9px] font-mono uppercase px-1 py-0.2 rounded ${reservaRoleClass} inline-block truncate max-w-full leading-none mt-0.5">${reservaRole}</span>
-                  </div>
-                </div>
-              ` : `
-                <div class="flex items-center gap-1.5 text-gray-400 py-0.5 truncate min-w-0">
-                  <div class="w-6 h-6 sm:w-7 sm:h-7 rounded border border-dashed border-gray-600 flex items-center justify-center text-gray-400 font-bold text-xs bg-[#131d28] flex-shrink-0">+</div>
-                  <span class="text-[11px] sm:text-xs font-medium text-gray-400 truncate">Reserva...</span>
-                </div>
-              `}
-              <svg class="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition flex-shrink-0 ml-1 hidden xs:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </button>
+          <!-- Borda Direita Interativa: Troca Manual de Posição -->
+          <div class="swap-edge-handle flex flex-col items-center justify-center cursor-pointer px-1.5 sm:px-2 py-2 rounded-lg border border-[#1e2f42] hover:border-amber-400 transition-all select-none self-stretch flex-shrink-0"
+               onclick="window.toggleManualSwap(${index}, event)"
+               title="Trocar posição: clique aqui e depois no card com o qual deseja trocar">
+            <span class="text-xs sm:text-sm text-gray-400 group-hover:text-amber-300 transition-transform select-none">⇄</span>
+            <span class="text-[7px] font-tactical font-black uppercase text-gray-500 group-hover:text-amber-300 tracking-tighter mt-0.5 select-none">Mover</span>
           </div>
 
         </div>
+
+        <!-- Card de Sugestão Tática (se houver conflito de agente ou função) -->
+        ${conflictCardHtml}
 
       </div>
     `;
@@ -856,6 +1209,19 @@ function renderPlayersList() {
   if (containerReserves) {
     containerReserves.innerHTML = reserves.map((player, rIdx) => {
       const actualIndex = rIdx + 5;
+      const isSwapSource = state.manualSwapSourceIndex === actualIndex;
+      const isSwapActive = state.manualSwapSourceIndex !== null;
+      const cardBorder = isSwapSource 
+        ? 'border-amber-400 ring-2 ring-amber-400/80 bg-[#161a22] shadow-[0_0_20px_rgba(245,158,11,0.4)]' 
+        : (isSwapActive ? 'border-sky-500/40 hover:border-amber-400/70 hover:bg-[#111924] cursor-pointer' : 'border-amber-900/40 hover:border-amber-500/50 bg-[#101722]');
+
+      const swapBannerHtml = isSwapSource ? `
+        <div class="w-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-tactical font-bold px-2.5 py-1 rounded-md flex items-center justify-between mb-1.5">
+          <span>🔄 Posição de Origem Selecionada (R${rIdx + 1}). Clique no card destino para concluir.</span>
+          <button type="button" onclick="window.toggleManualSwap(${actualIndex}, event)" class="underline text-white text-[9px] hover:text-amber-200">Cancelar</button>
+        </div>
+      ` : '';
+
       const rRatingVisual = getRatingVisuals(player.rendimento);
       const foundRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (player.name || '').trim().toLowerCase());
       let rMatchCount = 0;
@@ -955,73 +1321,95 @@ function renderPlayersList() {
         `;
       }).join('');
 
+      const reserveAvatarSrc = player.photoUrl || (foundRoster?.photoUrl) || '';
+
       return `
-        <div class="tactical-card p-2.5 sm:p-3.5 rounded-lg border border-amber-900/40 hover:border-amber-500/50 bg-[#101722] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0"
+        <div class="tactical-card p-2.5 sm:p-3 rounded-lg border ${cardBorder} flex flex-col gap-2 w-full min-w-0 relative"
              id="player-card-${actualIndex}"
-             style="position: relative; z-index: ${20 - rIdx};">
+             ${isSwapActive && !isSwapSource ? `onclick="window.executeManualSwap(${actualIndex})"` : ''}
+             style="z-index: ${20 - rIdx};">
           
-          <!-- Identificador R1/R2, Nome & Autocomplete & Stats Tracker -->
-          <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
-            <div class="flex items-center gap-2 min-w-0">
-              <button type="button"
-                      onclick="window.openPlayerProfileModal(${actualIndex})"
-                      title="Ver Perfil Completo, Histórico de Partidas e Cálculo de ${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}"
-                      class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-amber-300 hover:text-white shadow-inner flex-shrink-0 transition-all cursor-pointer group relative">
-                <span>R${rIdx + 1}</span>
-                <span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-[#0d141e] flex items-center justify-center text-[7px] text-black font-bold opacity-80 group-hover:opacity-100 group-hover:scale-125 transition">📊</span>
-              </button>
-              <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${actualIndex}">
-                <input type="text" 
-                       id="player-name-input-${actualIndex}"
-                       value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
-                       oninput="window.handlePlayerNameInput(${actualIndex}, this.value)"
-                       onfocus="window.showRosterAutocomplete(${actualIndex})"
-                       onchange="window.updatePlayerName(${actualIndex}, this.value)"
-                       placeholder="Nick#TAG (ex: Bruna#BR1)"
-                       autocomplete="off"
-                       class="w-full bg-[#0d141e] border border-[#223347] focus:border-amber-400 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
-                
-                <!-- Dropdown de Autocomplete -->
-                <div id="roster-autocomplete-dropdown-${actualIndex}" 
-                     class="absolute left-0 top-full mt-1.5 z-50 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[#0d141e] border border-[#2a3e55] rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.95)] ring-1 ring-amber-500/40 overflow-hidden hidden animate-fade-in">
+          ${swapBannerHtml}
+
+          <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
+            
+            <!-- Identificador R1/R2, Avatar Customizado, Nome & Autocomplete & Stats Tracker -->
+            <div class="flex flex-col gap-1.5 w-full md:w-64 flex-shrink-0 min-w-0">
+              <div class="flex items-center gap-2 min-w-0">
+                <button type="button"
+                        onclick="window.openPlayerProfileModal(${actualIndex})"
+                        title="Ver Perfil Completo, Histórico de Partidas e Alterar Foto de ${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}"
+                        class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-950/70 hover:bg-amber-900/90 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center font-tactical font-bold text-xs sm:text-sm text-amber-300 hover:text-white shadow-inner flex-shrink-0 transition-all cursor-pointer group relative overflow-hidden">
+                  ${reserveAvatarSrc ? `
+                    <img src="${reserveAvatarSrc}" alt="Avatar" class="w-full h-full object-cover">
+                    <span class="absolute bottom-0 right-0 bg-[#0d141e]/90 text-[7px] font-black text-amber-300 px-0.5 leading-none">R${rIdx + 1}</span>
+                  ` : `
+                    <span>R${rIdx + 1}</span>
+                    <span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-[#0d141e] flex items-center justify-center text-[7px] text-black font-bold opacity-80 group-hover:opacity-100 group-hover:scale-125 transition">📊</span>
+                  `}
+                </button>
+                <div class="flex-1 min-w-0 relative" id="player-name-wrapper-${actualIndex}">
+                  <input type="text" 
+                         id="player-name-input-${actualIndex}"
+                         value="${escapeHtml(player.name || `Reserva ${rIdx + 1}`)}" 
+                         oninput="window.handlePlayerNameInput(${actualIndex}, this.value)"
+                         onfocus="window.showRosterAutocomplete(${actualIndex})"
+                         onchange="window.updatePlayerName(${actualIndex}, this.value)"
+                         placeholder="Nick#TAG (ex: Bruna#BR1)"
+                         autocomplete="off"
+                         class="w-full bg-[#0d141e] border border-[#223347] focus:border-amber-400 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none transition truncate">
+                  
+                  <!-- Dropdown de Autocomplete -->
+                  <div id="roster-autocomplete-dropdown-${actualIndex}" 
+                       class="absolute left-0 top-full mt-1.5 z-50 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-[#0d141e] border border-[#2a3e55] rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.95)] ring-1 ring-amber-500/40 overflow-hidden hidden animate-fade-in">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stats Tracker: Link, Estatísticas, K/D, Rendimento e Mais Jogadas -->
+              <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
+                ${trackerLinkHtml}
+                <button onclick="window.openPlayerProfileModal(${actualIndex})" 
+                        title="Ver página completa com estatísticas, histórico de partidas e cálculo"
+                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-400 hover:text-white bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                  <span>Estatísticas</span>
+                </button>
+                <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
+                  <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
+                  <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
+                         onchange="window.updatePlayerKd(${actualIndex}, this.value)" 
+                         class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
+                </div>
+                <!-- Rendimento no Mapa -->
+                <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${rRatingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition relative" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10) - Base: ${rMatchCount > 0 ? `${rMatchCount} partidas` : 'Amostragem estimada'}">
+                  <span class="text-[9px] font-tactical font-bold ${rRatingVisual.labelColor}">Rend:</span>
+                  <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="--" 
+                         onchange="window.updatePlayerRendimento(${actualIndex}, this.value)" 
+                         class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${rRatingVisual.valColor} placeholder-gray-600 focus:outline-none text-center">
+                  ${rMatchCount > 0 ? `<span class="text-[8px] font-mono text-gray-400 bg-[#141f2d] border border-[#22354a] px-1 py-0.2 rounded leading-none" title="Cálculo baseado em ${rMatchCount} partida(s) em ${escapeHtml(activeMap.name)}">${rMatchCount}j</span>` : ''}
+                </div>
+                <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker)">
+                  <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
+                  ${mostPlayedIconsHtml}
+                  ${addMostPlayedBtn}
                 </div>
               </div>
             </div>
 
-            <!-- Stats Tracker: Link, Estatísticas, K/D, Rendimento e Mais Jogadas -->
-            <div class="flex items-center gap-1.5 flex-wrap pl-0.5 sm:pl-1 text-[10px]">
-              ${trackerLinkHtml}
-              <button onclick="window.openPlayerProfileModal(${actualIndex})" 
-                      title="Ver página completa com estatísticas, histórico de partidas e cálculo"
-                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-sky-400 hover:text-white bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 transition">
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                <span>Estatísticas</span>
-              </button>
-              <div class="inline-flex items-center gap-1 bg-[#0d141e] border border-[#223347] px-1.5 py-0.5 rounded" title="K/D da jogadora no Tracker">
-                <span class="text-[9px] font-tactical font-bold text-gray-400">K/D:</span>
-                <input type="text" value="${escapeHtml(player.kd || '')}" placeholder="1.00" 
-                       onchange="window.updatePlayerKd(${actualIndex}, this.value)" 
-                       class="w-9 bg-transparent text-[10px] sm:text-xs font-mono font-bold text-emerald-400 focus:outline-none text-center">
-              </div>
-              <!-- Rendimento no Mapa -->
-              <div class="inline-flex items-center gap-1 bg-[#0d141e] border ${rRatingVisual.border} hover:border-amber-400/50 px-1.5 py-0.5 rounded transition relative" title="Pontuação de Rendimento da jogadora em ${escapeHtml(activeMap.name)} (0 a 10) - Base: ${rMatchCount > 0 ? `${rMatchCount} partidas` : 'Amostragem estimada'}">
-                <span class="text-[9px] font-tactical font-bold ${rRatingVisual.labelColor}">Rend:</span>
-                <input type="text" value="${escapeHtml(player.rendimento || '')}" placeholder="--" 
-                       onchange="window.updatePlayerRendimento(${actualIndex}, this.value)" 
-                       class="w-8 bg-transparent text-[10px] sm:text-xs font-mono font-bold ${rRatingVisual.valColor} placeholder-gray-600 focus:outline-none text-center">
-                ${rMatchCount > 0 ? `<span class="text-[8px] font-mono text-gray-400 bg-[#141f2d] border border-[#22354a] px-1 py-0.2 rounded leading-none" title="Cálculo baseado em ${rMatchCount} partida(s) em ${escapeHtml(activeMap.name)}">${rMatchCount}j</span>` : ''}
-              </div>
-              <div class="flex items-center gap-1" title="Agentes mais jogados (Tracker)">
-                <span class="text-[8px] font-tactical uppercase text-gray-500">Top:</span>
-                ${mostPlayedIconsHtml}
-                ${addMostPlayedBtn}
-              </div>
+            <!-- 3 Slots de Bonecos Flex -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full flex-1 min-w-0">
+              ${flexSlots}
             </div>
-          </div>
 
-          <!-- 3 Slots de Bonecos Flex -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full flex-1 min-w-0">
-            ${flexSlots}
+            <!-- Borda Direita Interativa: Troca Manual de Posição -->
+            <div class="swap-edge-handle flex flex-col items-center justify-center cursor-pointer px-1.5 sm:px-2 py-2 rounded-lg border border-amber-900/50 hover:border-amber-400 transition-all select-none self-stretch flex-shrink-0"
+                 onclick="window.toggleManualSwap(${actualIndex}, event)"
+                 title="Trocar posição: clique aqui e depois no card com o qual deseja trocar">
+              <span class="text-xs sm:text-sm text-gray-400 group-hover:text-amber-300 transition-transform select-none">⇄</span>
+              <span class="text-[7px] font-tactical font-black uppercase text-gray-500 group-hover:text-amber-300 tracking-tighter mt-0.5 select-none">Mover</span>
+            </div>
+
           </div>
 
         </div>
@@ -3002,19 +3390,28 @@ window.renderPlayerProfileModal = function() {
   const data = getPlayerProfileData(state.playerProfileModal.playerIndex);
   if (!data) return;
 
-  // Header Avatar
+  // Header Avatar Clicável para abrir o Modal de Foto / Avatar
   const avatarContainer = document.getElementById('ppm-avatar-container');
   if (avatarContainer) {
     const topAgent = data.mostPlayed[0] || 'Killjoy';
     const agentIcon = getAgentIcon(topAgent);
     const agentColor = getAgentColor(topAgent);
+    const avatarSrc = data.photoUrl || agentIcon;
+
     avatarContainer.innerHTML = `
-      <div class="relative group">
-        <img src="${agentIcon}" alt="${topAgent}" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover bg-black/60 border-2 shadow-lg" style="border-color: ${agentColor}">
+      <button type="button"
+              onclick="window.openPlayerAvatarModal(${data.playerIndex})"
+              title="Clique para alterar a foto de perfil de ${escapeHtml(data.cleanName)}"
+              class="relative group cursor-pointer rounded-2xl overflow-hidden focus:outline-none ring-2 ring-transparent hover:ring-[#ff4655] transition-all">
+        <img src="${avatarSrc}" alt="${escapeHtml(data.cleanName)}" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover bg-black/60 border-2 shadow-lg" style="border-color: ${agentColor}">
+        <div class="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200">
+          <span class="text-xs sm:text-base">📷</span>
+          <span class="text-[8px] font-tactical font-black uppercase tracking-wider text-amber-300">Alterar</span>
+        </div>
         <span class="absolute -bottom-1 -right-1 px-1.5 py-0.2 rounded text-[9px] font-tactical font-black bg-[#0d141e] border border-white/20 text-white shadow">
           ${data.isSub ? `R${data.playerIndex - 4}` : `P${data.playerIndex + 1}`}
         </span>
-      </div>
+      </button>
     `;
   }
 
@@ -4079,6 +4476,233 @@ window.assignAgentFromProfile = function(agentName, mapId = null) {
 };
 
 // --------------------------------------------------------------------------
+// MODAL: FOTO DE PERFIL / AVATAR DA JOGADORA (SISTEMA & UPLOAD PRÓPRIO)
+// --------------------------------------------------------------------------
+
+window.openPlayerAvatarModal = function(playerIndex) {
+  const players = state.lineups[state.activeMapId] || DEFAULT_PLAYERS;
+  const player = players[playerIndex];
+  if (!player) return;
+
+  state.playerAvatarModal.playerIndex = playerIndex;
+  const foundRoster = (state.roster || []).find(r => r.name && player.name && r.name.toLowerCase() === player.name.trim().toLowerCase());
+  const currentPhoto = player.photoUrl || (foundRoster?.photoUrl) || '';
+  const fallbackAg = player.titular || player.flex1 || player.mostPlayed?.[0] || 'Killjoy';
+  const fallbackIcon = getAgentIcon(fallbackAg);
+
+  state.playerAvatarModal.selectedAvatarUrl = currentPhoto || fallbackIcon;
+  state.playerAvatarModal.currentTab = 'agents';
+
+  // Atualiza elementos visuais do modal
+  const previewImg = document.getElementById('avatar-modal-preview-img');
+  const previewBadge = document.getElementById('avatar-modal-preview-badge');
+  const playerNameEl = document.getElementById('avatar-modal-player-name');
+  const subtitleEl = document.getElementById('player-avatar-subtitle');
+
+  if (previewImg) previewImg.src = state.playerAvatarModal.selectedAvatarUrl;
+  if (previewBadge) previewBadge.textContent = playerIndex < 5 ? `P${player.id || playerIndex + 1}` : `R${(player.id || playerIndex + 1) - 5}`;
+  if (playerNameEl) playerNameEl.textContent = player.name || `Player ${player.id || playerIndex + 1}`;
+  if (subtitleEl) subtitleEl.textContent = `Escolha um avatar oficial ou envie uma foto para ${player.name || `Player ${player.id}`}`;
+
+  window.filterAvatarGallery('agents');
+
+  const modal = document.getElementById('player-avatar-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+};
+
+window.closePlayerAvatarModal = function() {
+  const modal = document.getElementById('player-avatar-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+};
+
+window.filterAvatarGallery = function(category = 'agents') {
+  state.playerAvatarModal.currentTab = category;
+
+  ['agents', 'roles', 'ranks'].forEach(cat => {
+    const btn = document.getElementById(`avatar-tab-${cat}`);
+    if (btn) {
+      if (cat === category) {
+        btn.className = 'px-2.5 py-1 rounded-md text-[11px] font-tactical font-bold bg-[#ff4655] text-white whitespace-nowrap shadow';
+      } else {
+        btn.className = 'px-2.5 py-1 rounded-md text-[11px] font-tactical font-bold bg-[#121c27] text-gray-300 hover:text-white border border-[#233547] whitespace-nowrap';
+      }
+    }
+  });
+
+  const grid = document.getElementById('avatar-gallery-grid');
+  if (!grid) return;
+
+  const galleryList = (window.SYSTEM_AVATARS && window.SYSTEM_AVATARS[category]) 
+    ? window.SYSTEM_AVATARS[category] 
+    : (category === 'agents' ? ALL_AGENTS.map(a => ({ name: a.name, url: a.icon })) : []);
+
+  grid.innerHTML = galleryList.map(item => {
+    const isSelected = state.playerAvatarModal.selectedAvatarUrl === item.url;
+    return `
+      <button type="button"
+              onclick="window.selectGalleryAvatar('${item.url}')"
+              title="${escapeHtml(item.name)}"
+              class="p-1.5 rounded-xl border flex flex-col items-center justify-between gap-1 transition-all cursor-pointer group ${isSelected ? 'border-[#ff4655] bg-[#ff4655]/20 ring-2 ring-[#ff4655] shadow-lg' : 'border-[#1e2f42] bg-[#0c141f] hover:border-amber-400 hover:bg-[#121b27]'}">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-black/60 p-1 flex items-center justify-center overflow-hidden">
+          <img src="${item.url}" alt="${escapeHtml(item.name)}" class="w-full h-full object-contain group-hover:scale-105 transition-transform" loading="lazy">
+        </div>
+        <span class="text-[9px] font-tactical font-bold text-gray-300 group-hover:text-white truncate max-w-full block leading-none text-center">
+          ${escapeHtml(item.name)}
+        </span>
+      </button>
+    `;
+  }).join('');
+};
+
+window.selectGalleryAvatar = function(url) {
+  state.playerAvatarModal.selectedAvatarUrl = url;
+  const previewImg = document.getElementById('avatar-modal-preview-img');
+  if (previewImg) previewImg.src = url;
+  window.filterAvatarGallery(state.playerAvatarModal.currentTab);
+};
+
+window.triggerAvatarFileInput = function() {
+  const input = document.getElementById('player-avatar-file-input');
+  if (input) input.click();
+};
+
+window.handleAvatarFileUpload = function(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('Por favor, selecione um arquivo de imagem válido (PNG, JPG, WebP)!', 'warning');
+    return;
+  }
+
+  showToast('Processando e compactando imagem...', 'info');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const maxDim = 256;
+      let w = img.width;
+      let h = img.height;
+
+      if (w > h) {
+        if (w > maxDim) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        }
+      } else {
+        if (h > maxDim) {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+      state.playerAvatarModal.selectedAvatarUrl = compressedBase64;
+
+      const previewImg = document.getElementById('avatar-modal-preview-img');
+      if (previewImg) previewImg.src = compressedBase64;
+
+      showToast('Imagem carregada! Clique em "Salvar Foto de Perfil".', 'success');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveSelectedAvatar = function() {
+  const pIdx = state.playerAvatarModal.playerIndex;
+  if (pIdx === null) return;
+
+  const activeMapId = state.activeMapId;
+  const currentPlayers = state.lineups[activeMapId];
+  if (!currentPlayers || !currentPlayers[pIdx]) return;
+
+  const player = currentPlayers[pIdx];
+  player.photoUrl = state.playerAvatarModal.selectedAvatarUrl;
+
+  // Também propaga para todos os mapas e para o roster
+  if (player.name && player.name.trim()) {
+    const clean = player.name.trim().toLowerCase();
+    (state.roster || []).forEach(r => {
+      if (r.name && r.name.toLowerCase() === clean) {
+        r.photoUrl = player.photoUrl;
+      }
+    });
+
+    Object.keys(state.lineups).forEach(mId => {
+      const mPlayers = state.lineups[mId];
+      if (Array.isArray(mPlayers)) {
+        mPlayers.forEach(mp => {
+          if (mp.name && mp.name.toLowerCase() === clean) {
+            mp.photoUrl = player.photoUrl;
+          }
+        });
+      }
+    });
+  }
+
+  saveCurrentState();
+  syncSavePlayer(activeMapId, pIdx, player, state.lineups);
+
+  window.closePlayerAvatarModal();
+  if (typeof window.renderPlayerProfileModal === 'function') {
+    window.renderPlayerProfileModal();
+  }
+  renderPlayersList();
+  showToast('Foto de perfil salva e atualizada com sucesso!', 'success');
+};
+
+window.resetPlayerAvatarToDefault = function() {
+  const pIdx = state.playerAvatarModal.playerIndex;
+  if (pIdx === null) return;
+
+  const player = state.lineups[state.activeMapId]?.[pIdx];
+  if (player) {
+    delete player.photoUrl;
+    if (player.name) {
+      const clean = player.name.trim().toLowerCase();
+      (state.roster || []).forEach(r => {
+        if (r.name && r.name.toLowerCase() === clean) {
+          delete r.photoUrl;
+        }
+      });
+      Object.keys(state.lineups).forEach(mId => {
+        const mPlayers = state.lineups[mId];
+        if (Array.isArray(mPlayers)) {
+          mPlayers.forEach(mp => {
+            if (mp.name && mp.name.toLowerCase() === clean) {
+              delete mp.photoUrl;
+            }
+          });
+        }
+      });
+    }
+    saveCurrentState();
+    syncSavePlayer(state.activeMapId, pIdx, player, state.lineups);
+  }
+
+  window.closePlayerAvatarModal();
+  if (typeof window.renderPlayerProfileModal === 'function') {
+    window.renderPlayerProfileModal();
+  }
+  renderPlayersList();
+  showToast('Foto de perfil resetada para o agente padrão.', 'info');
+};
+
+// --------------------------------------------------------------------------
 // MODAL: BANCO DE JOGADORAS (ROSTER COMPLETO DA EQUIPE)
 // --------------------------------------------------------------------------
 
@@ -4744,6 +5368,28 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
     const isRec = recNames.includes(agent.name.toLowerCase());
     const isPlayerPool = playerPool.includes(agent.name.toLowerCase());
     const poolIndex = playerPool.indexOf(agent.name.toLowerCase());
+
+    // Verifica se este agente está bloqueado para a jogadora atual
+    let isBlocked = false;
+    let blockedReason = '';
+    if (player) {
+      if (state.activeModal.playerIndex < 5) {
+        if (state.activeModal.agentSlot === 'titular' && player.reserva && player.reserva.toLowerCase() === agent.name.toLowerCase()) {
+          isBlocked = true;
+          blockedReason = 'Já no slot Reserva';
+        } else if (state.activeModal.agentSlot === 'reserva' && player.titular && player.titular.toLowerCase() === agent.name.toLowerCase()) {
+          isBlocked = true;
+          blockedReason = 'Já no slot Titular';
+        }
+      } else if (state.activeModal.agentSlot && state.activeModal.agentSlot.startsWith('flex')) {
+        const otherFlex = ['flex1', 'flex2', 'flex3'].filter(k => k !== state.activeModal.agentSlot);
+        if (otherFlex.some(k => player[k] && player[k].toLowerCase() === agent.name.toLowerCase())) {
+          isBlocked = true;
+          blockedReason = 'Já em outro slot Flex';
+        }
+      }
+    }
+
     const roleIcons = {
       'Duelista': '🎯',
       'Controlador': '☁️',
@@ -4773,7 +5419,10 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
 
     let borderClass = 'border-[#1e2f42] hover:border-amber-400 hover:bg-[#121c27]';
     let bgClass = 'bg-[#080d14]';
-    if (isSelected) {
+    if (isBlocked) {
+      borderClass = 'border-rose-900/60 bg-[#12080a] opacity-50 cursor-not-allowed';
+      bgClass = 'bg-[#12080a]';
+    } else if (isSelected) {
       borderClass = 'border-[#ff4655] bg-gradient-to-b from-[#ff4655]/20 to-[#160a0f] shadow-[0_0_20px_rgba(255,70,85,0.4)] ring-2 ring-[#ff4655]';
       bgClass = 'bg-[#140b10]';
     } else if (isRec) {
@@ -4790,8 +5439,12 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
       metaBadge = `<span class="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-950/90 border border-emerald-500/50 px-1.5 py-0.5 rounded flex items-center gap-1" title="Recomendado no meta deste mapa">★ Meta</span>`;
     }
 
+    const clickAction = isBlocked 
+      ? `showToast('🚫 ${blockedReason}! Uma jogadora não pode ter o mesmo agente como titular e reserva.', 'warning')` 
+      : `window.selectAgent('${agent.name}')`;
+
     return `
-      <button onclick="window.selectAgent('${agent.name}')" 
+      <button onclick="${clickAction}" 
               class="p-1.5 sm:p-2.5 rounded-xl border text-left transition-all duration-200 flex flex-col justify-between group min-w-0 cursor-pointer ${borderClass} ${bgClass} hover:-translate-y-0.5 hover:shadow-xl relative">
         
         <!-- Header do Card: Retrato Proporcional Não Cortado e Nome -->
@@ -4823,15 +5476,18 @@ function renderAgentsGrid(roleFilter = 'all', searchQuery = '') {
           </div>
         </div>
 
-        <!-- Rodapé do Card: Badges Táticas (Meta, Pool, Selecionado) -->
+        <!-- Rodapé do Card: Badges Táticas (Meta, Pool, Bloqueado, Selecionado) -->
         <div class="flex items-center justify-between gap-1 mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-[#162232] flex-wrap w-full min-w-0 text-[8px] sm:text-[9px]">
           <div class="flex items-center gap-1 flex-wrap min-w-0">
-            ${metaBadge}
-            ${poolBadge}
+            ${isBlocked ? `<span class="text-[8px] font-mono font-bold text-rose-300 bg-rose-950/80 border border-rose-500/40 px-1 py-0.2 rounded">🚫 ${blockedReason}</span>` : ''}
+            ${!isBlocked ? metaBadge : ''}
+            ${!isBlocked ? poolBadge : ''}
           </div>
-          ${isSelected 
-            ? '<span class="text-[8px] sm:text-[9px] font-mono font-black text-[#ff4655] uppercase ml-auto">✓ Ativo</span>' 
-            : '<span class="text-[8px] sm:text-[9px] text-gray-500 font-mono group-hover:text-gray-200 transition ml-auto">Selecionar →</span>'}
+          ${isBlocked
+            ? '<span class="text-[8px] font-mono text-rose-400 uppercase ml-auto">Indisponível</span>'
+            : (isSelected 
+              ? '<span class="text-[8px] sm:text-[9px] font-mono font-black text-[#ff4655] uppercase ml-auto">✓ Ativo</span>' 
+              : '<span class="text-[8px] sm:text-[9px] text-gray-500 font-mono group-hover:text-gray-200 transition ml-auto">Selecionar →</span>')}
         </div>
 
       </button>
@@ -4845,6 +5501,29 @@ window.selectAgent = function(agentName) {
 
   const currentPlayers = state.lineups[state.activeMapId];
   if (!currentPlayers || !currentPlayers[playerIndex]) return;
+
+  const player = currentPlayers[playerIndex];
+
+  // Bloqueio rigoroso: Não permite o mesmo agente em Titular e Reserva
+  if (playerIndex < 5) {
+    if (agentSlot === 'titular') {
+      if (player.reserva && player.reserva.toLowerCase() === agentName.toLowerCase()) {
+        showToast(`🚫 Não é permitido escalar ${agentName} como Titular e Reserva da mesma jogadora!`, 'warning');
+        return;
+      }
+    } else if (agentSlot === 'reserva') {
+      if (player.titular && player.titular.toLowerCase() === agentName.toLowerCase()) {
+        showToast(`🚫 Não é permitido escalar ${agentName} como Titular e Reserva da mesma jogadora!`, 'warning');
+        return;
+      }
+    }
+  } else if (agentSlot && agentSlot.startsWith('flex')) {
+    const otherFlex = ['flex1', 'flex2', 'flex3'].filter(k => k !== agentSlot);
+    if (otherFlex.some(k => player[k] && player[k].toLowerCase() === agentName.toLowerCase())) {
+      showToast(`🚫 ${agentName} já está escalado em outro slot Flex desta jogadora!`, 'warning');
+      return;
+    }
+  }
 
   if (agentSlot.startsWith('top')) {
     if (!Array.isArray(currentPlayers[playerIndex].mostPlayed)) {
@@ -6082,6 +6761,7 @@ function renderTeamAnalyticsView() {
       totalMatches,
       comfortTier,
       comfortColor,
+      photoUrl: p.photoUrl || inRoster.photoUrl || '',
       isSub: false
     };
   });
@@ -6124,6 +6804,7 @@ function renderTeamAnalyticsView() {
       totalMatches,
       comfortTier: 'Reserva Flex 🔄',
       comfortColor: 'text-gray-300 bg-[#151f2b] border-[#223347]',
+      photoUrl: p.photoUrl || inRoster.photoUrl || '',
       isSub: true
     };
   });
@@ -6282,8 +6963,32 @@ function renderTeamAnalyticsView() {
     `;
   }).join('');
 
-  // Tabela comparativa do elenco (7 jogadoras)
+  // Tabela comparativa do elenco
   const allPlayers = [...titulares, ...reservas];
+  const sortCol = state.analyticsTableSort?.column || 'slot';
+  const sortOrder = state.analyticsTableSort?.order || 'asc';
+  const sortDir = sortOrder === 'asc' ? 1 : -1;
+
+  allPlayers.sort((a, b) => {
+    if (sortCol === 'slot') return (a.index - b.index) * sortDir;
+    if (sortCol === 'name') return (a.name.localeCompare(b.name)) * sortDir;
+    if (sortCol === 'agent') return (a.agent.localeCompare(b.agent)) * sortDir;
+    if (sortCol === 'comfort') return (a.comfortTier.localeCompare(b.comfortTier)) * sortDir;
+    if (sortCol === 'kd') return ((a.kd || 0) - (b.kd || 0)) * sortDir;
+    if (sortCol === 'acs') return ((a.acs || 0) - (b.acs || 0)) * sortDir;
+    if (sortCol === 'rating') {
+      const rA = parseFloat(isAllMapsMode ? a.overallRating : a.mapRating) || 0;
+      const rB = parseFloat(isAllMapsMode ? b.overallRating : b.mapRating) || 0;
+      return (rA - rB) * sortDir;
+    }
+    if (sortCol === 'matches') {
+      const mA = (a.compMatches || 0) + (a.unratedMatches || 0);
+      const mB = (b.compMatches || 0) + (b.unratedMatches || 0);
+      return (mA - mB) * sortDir;
+    }
+    return 0;
+  });
+
   const tableRowsHtml = allPlayers.map(p => {
     const icon = getAgentIcon(p.agent);
     const color = getAgentColor(p.agent);
@@ -6300,9 +7005,12 @@ function renderTeamAnalyticsView() {
           </span>
         </td>
         <td class="py-3 px-3 min-w-0">
-          <button onclick="window.openPlayerProfileModal(${p.index})" class="text-left group flex items-center gap-1.5 cursor-pointer max-w-full">
-            <span class="font-bold text-white group-hover:text-amber-300 transition truncate">${cleanNick}</span>
-            <span class="text-gray-500 text-[10px] font-mono hidden sm:inline">${tag}</span>
+          <button onclick="window.openPlayerProfileModal(${p.index})" class="text-left group flex items-center gap-2 cursor-pointer max-w-full">
+            ${p.photoUrl ? `<img src="${p.photoUrl}" alt="${cleanNick}" class="w-6 h-6 rounded-full object-cover border border-amber-400/50 flex-shrink-0">` : ''}
+            <div class="truncate min-w-0">
+              <span class="font-bold text-white group-hover:text-amber-300 transition truncate">${cleanNick}</span>
+              <span class="text-gray-500 text-[10px] font-mono hidden sm:inline">${tag}</span>
+            </div>
           </button>
         </td>
         <td class="py-3 px-3 whitespace-nowrap">
@@ -7309,15 +8017,55 @@ function renderTeamAnalyticsView() {
         <div class="overflow-x-auto rounded-xl border border-[#172535]">
           <table class="w-full text-left border-collapse min-w-[700px]">
             <thead>
-              <tr class="bg-[#080d14] border-b border-[#182638] text-[10px] uppercase font-tactical text-gray-400">
-                <th class="py-2.5 px-3">Slot</th>
-                <th class="py-2.5 px-3">Jogadora</th>
-                <th class="py-2.5 px-3">Agente Fixado</th>
-                <th class="py-2.5 px-3">Nível de Conforto</th>
-                <th class="py-2.5 px-3 text-center">K/D</th>
-                <th class="py-2.5 px-3 text-center">ACS</th>
-                <th class="py-2.5 px-3 text-center">Rendimento</th>
-                <th class="py-2.5 px-3 text-center">Partidas (Comp / Sem Class.)</th>
+              <tr class="bg-[#080d14] border-b border-[#182638] text-[10px] uppercase font-tactical text-gray-400 select-none">
+                <th onclick="window.sortAnalyticsTable('slot')" class="py-2.5 px-3 cursor-pointer hover:text-white transition group" title="Ordenar por Slot">
+                  <div class="flex items-center gap-1">
+                    <span>Slot</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'slot' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'slot' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('name')" class="py-2.5 px-3 cursor-pointer hover:text-white transition group" title="Ordenar por Nome da Jogadora">
+                  <div class="flex items-center gap-1">
+                    <span>Jogadora</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'name' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('agent')" class="py-2.5 px-3 cursor-pointer hover:text-white transition group" title="Ordenar por Agente">
+                  <div class="flex items-center gap-1">
+                    <span>Agente Fixado</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'agent' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'agent' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('comfort')" class="py-2.5 px-3 cursor-pointer hover:text-white transition group" title="Ordenar por Nível de Conforto">
+                  <div class="flex items-center gap-1">
+                    <span>Nível de Conforto</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'comfort' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'comfort' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('kd')" class="py-2.5 px-3 text-center cursor-pointer hover:text-white transition group" title="Ordenar por K/D">
+                  <div class="flex items-center justify-center gap-1">
+                    <span>K/D</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'kd' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'kd' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('acs')" class="py-2.5 px-3 text-center cursor-pointer hover:text-white transition group" title="Ordenar por ACS">
+                  <div class="flex items-center justify-center gap-1">
+                    <span>ACS</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'acs' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'acs' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('rating')" class="py-2.5 px-3 text-center cursor-pointer hover:text-white transition group" title="Ordenar por Rendimento">
+                  <div class="flex items-center justify-center gap-1">
+                    <span>Rendimento</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'rating' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'rating' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
+                <th onclick="window.sortAnalyticsTable('matches')" class="py-2.5 px-3 text-center cursor-pointer hover:text-white transition group" title="Ordenar por Volume de Partidas">
+                  <div class="flex items-center justify-center gap-1">
+                    <span>Partidas (Comp / Sem Class.)</span>
+                    <span class="font-mono text-[9px] ${sortCol === 'matches' ? 'text-amber-400 font-black' : 'text-gray-600 group-hover:text-gray-400'}">${sortCol === 'matches' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </div>
+                </th>
                 <th class="py-2.5 px-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -7331,6 +8079,17 @@ function renderTeamAnalyticsView() {
     </div>
   `;
 }
+
+// Ordenação clicável dos cabeçalhos da tabela de desempenho
+window.sortAnalyticsTable = function(column) {
+  if (state.analyticsTableSort.column === column) {
+    state.analyticsTableSort.order = state.analyticsTableSort.order === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.analyticsTableSort.column = column;
+    state.analyticsTableSort.order = ['kd', 'acs', 'rating', 'matches'].includes(column) ? 'desc' : 'asc';
+  }
+  renderTeamAnalyticsView();
+};
 
 
 // --------------------------------------------------------------------------
@@ -8290,6 +9049,16 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     window.hideAllRosterAutocompletes();
+    if (state.manualSwapSourceIndex !== null) {
+      state.manualSwapSourceIndex = null;
+      renderPlayersList();
+      showToast('Troca de posição cancelada.', 'info');
+    }
+    const avatarModal = document.getElementById('player-avatar-modal');
+    if (avatarModal && !avatarModal.classList.contains('hidden')) {
+      window.closePlayerAvatarModal();
+      return;
+    }
     if (state.playerProfileModal && state.playerProfileModal.selectedMapId) {
       window.backToAllMaps();
     } else if (typeof window.closePlayerProfileModal === 'function') {

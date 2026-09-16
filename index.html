@@ -237,6 +237,10 @@
           <h3 class="text-sm sm:text-lg font-tactical font-bold text-white tracking-wider break-words">ESCALAÇÃO DO TIME NO MAPA</h3>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="window.autoScaleLineupByRating()" title="Escalar automaticamente as jogadoras organizadas por pontuação/rendimento no mapa do maior para o menor" class="btn-tactical bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold border border-amber-400/50 text-xs px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition shadow-lg flex-shrink-0">
+            <span>🏆</span>
+            <span class="whitespace-nowrap">Escalar por Pontuação</span>
+          </button>
           <button onclick="window.resetCurrentMapBuild()" title="Limpar agentes titulares e reservas escalados neste mapa" class="btn-tactical bg-[#16202c] hover:bg-red-950/60 text-gray-300 hover:text-red-400 border border-[#283b50] hover:border-red-500/50 text-xs font-semibold px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 transition flex-shrink-0">
             <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -815,6 +819,83 @@
         <button onclick="window.closeRosterModal()" class="btn-tactical px-4 py-1.5 bg-[#ff4655] hover:bg-[#e03b49] text-xs font-bold text-white rounded">
           Fechar
         </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: FOTO DE PERFIL / AVATAR DA JOGADORA                                -->
+  <!-- ========================================================================= -->
+  <div id="player-avatar-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-2 sm:p-4">
+    <div class="tactical-card bg-[#0b121a] border border-[#1e2f42] rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+      
+      <!-- Cabeçalho -->
+      <div class="p-3.5 sm:p-4 border-b border-[#1b2b3d] flex items-center justify-between bg-[#080d14]">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#ff4655]/15 border border-[#ff4655]/40 flex items-center justify-center text-lg sm:text-xl flex-shrink-0">
+            📷
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm sm:text-base font-tactical font-black text-white uppercase tracking-wider truncate">FOTO DE PERFIL DA JOGADORA</h3>
+            <p id="player-avatar-subtitle" class="text-[10px] sm:text-xs text-gray-400 truncate">Selecione um avatar tático do sistema ou envie uma imagem própria</p>
+          </div>
+        </div>
+        <button onclick="window.closePlayerAvatarModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Preview da Imagem Selecionada & Ações Rápidas -->
+      <div class="p-3.5 sm:p-4 border-b border-[#162232] bg-[#070b10] flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="relative flex-shrink-0">
+            <img id="avatar-modal-preview-img" src="" alt="Preview" class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover bg-black/70 border-2 border-[#ff4655] shadow-lg">
+            <span id="avatar-modal-preview-badge" class="absolute -bottom-1 -right-1 px-1.5 py-0.2 rounded text-[8px] font-tactical font-black bg-[#0d141e] border border-white/20 text-white shadow">P1</span>
+          </div>
+          <div class="min-w-0">
+            <span id="avatar-modal-player-name" class="text-xs sm:text-sm font-bold text-white block truncate">Nome</span>
+            <span class="text-[10px] text-gray-400 block truncate">Esta imagem aparecerá na lineup, perfil e tabelas</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button onclick="window.triggerAvatarFileInput()" class="px-3 py-1.5 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-500/40 text-sky-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            <span>📁</span>
+            <span>Carregar do Aparelho</span>
+          </button>
+          <input type="file" id="player-avatar-file-input" accept="image/*" class="hidden" onchange="window.handleAvatarFileUpload(event)">
+          
+          <button onclick="window.resetPlayerAvatarToDefault()" class="px-2.5 py-1.5 rounded-lg bg-gray-900 hover:bg-red-950/80 border border-gray-700 hover:border-red-500/50 text-gray-300 hover:text-red-300 text-xs font-semibold transition" title="Voltar ao ícone padrão do agente">
+            Resetar
+          </button>
+        </div>
+      </div>
+
+      <!-- Seletor de Categoria de Avatares -->
+      <div class="px-3.5 sm:px-4 pt-3 pb-2 flex items-center gap-1.5 overflow-x-auto border-b border-[#162232] bg-[#090f17] text-xs map-tabs-container">
+        <span class="text-[10px] uppercase font-tactical font-bold text-gray-400 mr-1 flex-shrink-0">Galeria:</span>
+        <button onclick="window.filterAvatarGallery('agents')" id="avatar-tab-agents" class="px-2.5 py-1 rounded-md text-[11px] font-tactical font-bold bg-[#ff4655] text-white whitespace-nowrap">Agentes Valorant</button>
+        <button onclick="window.filterAvatarGallery('roles')" id="avatar-tab-roles" class="px-2.5 py-1 rounded-md text-[11px] font-tactical font-bold bg-[#121c27] text-gray-300 hover:text-white border border-[#233547] whitespace-nowrap">Funções Táticas</button>
+        <button onclick="window.filterAvatarGallery('ranks')" id="avatar-tab-ranks" class="px-2.5 py-1 rounded-md text-[11px] font-tactical font-bold bg-[#121c27] text-gray-300 hover:text-white border border-[#233547] whitespace-nowrap">Ranques</button>
+      </div>
+
+      <!-- Grid com Avatares Disponíveis -->
+      <div class="p-3.5 sm:p-4 flex-1 overflow-y-auto max-h-[45vh] min-h-[180px]">
+        <div id="avatar-gallery-grid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 gap-2 sm:gap-2.5">
+          <!-- Injetado dinamicamente via JS -->
+        </div>
+      </div>
+
+      <!-- Rodapé com Salvar -->
+      <div class="p-3 sm:p-4 border-t border-[#1b2b3d] bg-[#080d14] flex items-center justify-between gap-2">
+        <span class="text-[10px] text-gray-400 font-mono hidden sm:inline">Dica: Imagens personalizadas são salvas em nuvem e sincronizadas</span>
+        <div class="flex items-center gap-2 ml-auto">
+          <button onclick="window.closePlayerAvatarModal()" class="px-3 py-1.5 rounded-lg border border-[#233547] text-gray-300 hover:text-white text-xs font-bold transition">Cancelar</button>
+          <button onclick="window.saveSelectedAvatar()" class="px-4 py-1.5 rounded-lg bg-[#ff4655] hover:bg-[#e03b49] text-white text-xs font-tactical font-bold transition shadow-[0_0_12px_rgba(255,70,85,0.4)]">
+            Salvar Foto de Perfil
+          </button>
+        </div>
       </div>
 
     </div>
