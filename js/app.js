@@ -7668,9 +7668,73 @@ function renderTeamAnalyticsView() {
       comfortTier: 'Reserva Flex 🔄',
       comfortColor: 'text-gray-300 bg-[#151f2b] border-[#223347]',
       photoUrl: p.photoUrl || inRoster.photoUrl || '',
-      isSub: true
+      isSub: true,
+      flex1: p.flex1,
+      flex2: p.flex2,
+      flex3: p.flex3,
+      subIndex: rIdx
     };
   });
+
+  // Coleta todas as jogadoras escaladas da equipe ativa (sem duplicatas)
+  const teamPlayersMap = new Map();
+
+  titulares.forEach(p => {
+    const key = (p.name || '').trim().toLowerCase();
+    if (key && !teamPlayersMap.has(key)) {
+      teamPlayersMap.set(key, { ...p, isSub: false, subIndex: null });
+    }
+  });
+
+  reservas.forEach((p, rIdx) => {
+    const key = (p.name || '').trim().toLowerCase();
+    if (key && !teamPlayersMap.has(key)) {
+      teamPlayersMap.set(key, { ...p, isSub: true, subIndex: rIdx });
+    }
+  });
+
+  // Também inclui jogadoras escaladas em outros mapas da mesma equipe em state.lineups
+  if (state.lineups && typeof state.lineups === 'object') {
+    Object.values(state.lineups).forEach(mapPlayers => {
+      if (Array.isArray(mapPlayers)) {
+        mapPlayers.forEach((p, pIdx) => {
+          if (!p || !p.name) return;
+          const isSub = pIdx >= 5;
+          if (isSub && !hasScaledPlayer(p)) return;
+
+          const rawName = (p.name || '').trim();
+          if (!rawName) return;
+          if (!isSub && (rawName.toLowerCase().startsWith('player ') || rawName.toLowerCase() === 'player') && !p.titular) return;
+
+          const key = rawName.toLowerCase();
+          if (!teamPlayersMap.has(key)) {
+            const inRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === key) || {};
+            const agent = isSub ? (p.flex1 || inRoster.mostPlayed?.[0] || 'Cypher') : (p.titular || inRoster.mostPlayed?.[0] || 'Killjoy');
+            const role = inRoster.role || getAgentRole(agent) || 'Flex';
+            teamPlayersMap.set(key, {
+              index: pIdx,
+              name: rawName,
+              hasTag: rawName.includes('#'),
+              agent,
+              role,
+              kd: p.kd || inRoster.kd || '1.00',
+              rendimento: p.rendimento || inRoster.overallRating || '7.5',
+              overallRating: parseFloat(inRoster.overallRating || p.rendimento || '7.5'),
+              mostPlayed: (Array.isArray(p.mostPlayed) && p.mostPlayed.length > 0) ? p.mostPlayed : (inRoster.mostPlayed || [agent]),
+              photoUrl: p.photoUrl || inRoster.photoUrl || '',
+              flex1: p.flex1,
+              flex2: p.flex2,
+              flex3: p.flex3,
+              isSub,
+              subIndex: isSub ? (pIdx - 5) : null
+            });
+          }
+        });
+      }
+    });
+  }
+
+  const teamPlayers = Array.from(teamPlayersMap.values());
 
   // Métricas agregadas da equipe
   const avgRating = (titulares.reduce((acc, p) => acc + (isAllMapsMode ? p.overallRating : p.mapRating), 0) / titulares.length).toFixed(1);
@@ -7936,8 +8000,9 @@ function renderTeamAnalyticsView() {
   }
 
   // Agrupa partidas por evento real de partida para não multiplicar jogadoras da mesma line
+  const teamPlayerNames = new Set(teamPlayers.map(p => p.name.trim().toLowerCase()));
   const matchEventMap = new Map();
-  (state.roster || []).forEach(pl => {
+  (state.roster || []).filter(pl => pl.name && teamPlayerNames.has(pl.name.trim().toLowerCase())).forEach(pl => {
     if (Array.isArray(pl.recentMatches)) {
       pl.recentMatches.forEach(m => {
         const matchFilter = isAllMapsMode || 
@@ -8031,12 +8096,62 @@ function renderTeamAnalyticsView() {
   let modeSpecificSectionHtml = '';
 
   if (isAllMapsMode) {
-    // MODO GERAL: Visão Macro, Matriz de Cobertura de Funções do Roster e Radar de Ban & Pick
-    const roleDuelistas = (state.roster || []).filter(r => r.role === 'Duelista');
-    const roleControladoras = (state.roster || []).filter(r => r.role === 'Controlador' || r.role === 'Controladora');
-    const roleIniciadoras = (state.roster || []).filter(r => r.role === 'Iniciador' || r.role === 'Iniciadora');
-    const roleSentinelas = (state.roster || []).filter(r => r.role === 'Sentinela');
-    const roleFlex = (state.roster || []).filter(r => r.role === 'Flex');
+    // MODO GERAL: Visão Macro, Matriz de Cobertura de Funções da Equipe Ativa e Radar de Ban & Pick
+    const isDuelist = p => {
+      const r = (p.role || '').toLowerCase();
+      const agR = (getAgentRole(p.agent) || '').toLowerCase();
+      return r === 'duelista' || agR === 'duelista';
+    };
+    const isController = p => {
+      const r = (p.role || '').toLowerCase();
+      const agR = (getAgentRole(p.agent) || '').toLowerCase();
+      return r.startsWith('controlad') || agR.startsWith('controlad');
+    };
+    const isInitiator = p => {
+      const r = (p.role || '').toLowerCase();
+      const agR = (getAgentRole(p.agent) || '').toLowerCase();
+      return r.startsWith('iniciad') || agR.startsWith('iniciad');
+    };
+    const isSentinel = p => {
+      const r = (p.role || '').toLowerCase();
+      const agR = (getAgentRole(p.agent) || '').toLowerCase();
+      return r === 'sentinela' || agR === 'sentinela';
+    };
+
+    const roleDuelistas = teamPlayers.filter(isDuelist);
+    const roleControladoras = teamPlayers.filter(isController);
+    const roleIniciadoras = teamPlayers.filter(isInitiator);
+    const roleSentinelas = teamPlayers.filter(isSentinel);
+    const teamReservas = teamPlayers.filter(p => p.isSub);
+
+    let coveredRolesCount = 0;
+    if (roleDuelistas.length > 0) coveredRolesCount++;
+    if (roleControladoras.length > 0) coveredRolesCount++;
+    if (roleIniciadoras.length > 0) coveredRolesCount++;
+    if (roleSentinelas.length > 0) coveredRolesCount++;
+
+    let resiliencePercent = Math.min(100, Math.max(30, (coveredRolesCount * 20) + (teamReservas.length * 5)));
+    let resilienceTier = 'Alta Robustez';
+    let resilienceTextColor = 'text-emerald-400';
+    let resilienceColorClass = 'bg-emerald-500/20 border-emerald-500/50';
+
+    if (resiliencePercent < 60) {
+      resilienceTier = 'Vulnerável (Faltam Funções)';
+      resilienceTextColor = 'text-rose-400';
+      resilienceColorClass = 'bg-rose-500/20 border-rose-500/50';
+    } else if (resiliencePercent < 80) {
+      resilienceTier = 'Atenção a Desfalques';
+      resilienceTextColor = 'text-amber-400';
+      resilienceColorClass = 'bg-amber-500/20 border-amber-500/50';
+    } else if (resiliencePercent >= 90) {
+      resilienceTier = 'Alta Robustez';
+      resilienceTextColor = 'text-emerald-400';
+      resilienceColorClass = 'bg-emerald-500/20 border-emerald-500/50';
+    } else {
+      resilienceTier = 'Boa Cobertura';
+      resilienceTextColor = 'text-sky-400';
+      resilienceColorClass = 'bg-sky-500/20 border-sky-500/50';
+    }
 
     modeSpecificSectionHtml = `
       <!-- BANNER EXPLICATIVO PARA SELEÇÃO DE MAPA -->
@@ -8169,25 +8284,25 @@ function renderTeamAnalyticsView() {
               </span>
             </div>
             <h3 class="text-base sm:text-xl font-tactical font-black text-white uppercase tracking-wider flex items-center gap-2 flex-wrap break-words">
-              <span>👥</span> Cobertura de Funções & Profundidade do Elenco (9 Jogadoras)
+              <span>👥</span> Cobertura de Funções & Profundidade do Elenco (${teamPlayers.length} Jogadoras)
             </h3>
             <p class="text-xs text-gray-300 mt-1 max-w-4xl leading-relaxed break-words">
-              Mapeamento tático dos 4 papéis essenciais e da flexibilidade das 4 jogadoras reservas (com 3 slots Flex cada). Analisa o impacto de cada função no controle de mapa, na economia de utilitários e os riscos diretos em caso de ban de agente ou ausência em séries MD3 / MD5. Passe o mouse sobre qualquer jogadora para entender os motivos técnicos e táticos da escalação.
+              Mapeamento tático dos 4 papéis essenciais e da flexibilidade das ${teamReservas.length} jogadoras reservas (${teamReservas.length * 3} slots Flex). Analisa o impacto de cada função no controle de mapa, na economia de utilitários e os riscos diretos em caso de ban de agente ou ausência em séries MD3 / MD5. Passe o mouse sobre qualquer jogadora para entender os motivos técnicos e táticos da escalação.
             </p>
           </div>
 
           <!-- Índice de Resiliência do Elenco -->
           <div class="flex items-center gap-3 bg-[#080d14] border border-[#1b2b3d] p-3 rounded-xl w-full sm:w-auto min-w-0 flex-shrink-0">
-            <div class="w-10 h-10 rounded-lg bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-xl font-bold flex-shrink-0">
+            <div class="w-10 h-10 rounded-lg ${resilienceColorClass} border flex items-center justify-center text-xl font-bold flex-shrink-0">
               🛡️
             </div>
             <div class="min-w-0">
               <span class="text-[9px] uppercase font-tactical text-gray-400 block leading-tight truncate">Índice de Resiliência</span>
               <div class="flex items-baseline gap-1 flex-wrap">
-                <span class="text-xl font-mono font-black text-emerald-400">92%</span>
-                <span class="text-[10px] text-emerald-300 font-tactical">Alta Robustez</span>
+                <span class="text-xl font-mono font-black ${resilienceTextColor}">${resiliencePercent}%</span>
+                <span class="text-[10px] ${resilienceTextColor} font-tactical">${resilienceTier}</span>
               </div>
-              <span class="text-[9px] text-gray-500 font-mono block truncate">4 Papéis + 4 Reservas (12 Flex)</span>
+              <span class="text-[9px] text-gray-500 font-mono block truncate">${coveredRolesCount} Papéis Cobertos + ${teamReservas.length} ${teamReservas.length === 1 ? 'Reserva' : 'Reservas'} (${teamReservas.length * 3} Flex)</span>
             </div>
           </div>
         </div>
@@ -8205,7 +8320,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-xs font-tactical font-black text-rose-400 uppercase tracking-wider truncate">🎯 Duelistas</span>
                 </div>
                 <span class="text-[9px] font-mono text-rose-300 bg-rose-950/70 border border-rose-500/30 px-1.5 py-0.2 rounded font-bold flex-shrink-0">
-                  ${roleDuelistas.length} no Roster
+                  ${roleDuelistas.length} na Equipe
                 </span>
               </div>
 
@@ -8213,7 +8328,7 @@ function renderTeamAnalyticsView() {
               <div class="my-2 bg-[#120a0d] p-2 rounded-lg border border-rose-500/20">
                 <span class="text-[9px] uppercase font-tactical text-rose-300 font-bold block">Status da Função:</span>
                 <span class="text-[11px] text-white font-bold block mt-0.5 break-words">
-                  ${roleDuelistas.length >= 2 ? '🟢 Cobertura Completa (Dupla Opção)' : '⚖️ Titular Ativa (Risco em Ausência)'}
+                  ${roleDuelistas.length >= 2 ? '🟢 Cobertura Completa (Dupla Opção)' : (roleDuelistas.length === 1 ? '⚖️ Titular Ativa (Risco em Ausência)' : '🔴 Sem Duelista Escalada')}
                 </span>
               </div>
 
@@ -8223,7 +8338,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-[9px] uppercase font-tactical text-gray-400 block">Jogadoras Aptas:</span>
                   <span class="text-[8px] font-mono text-rose-400/80 bg-rose-950/40 px-1 py-0.2 rounded border border-rose-500/20">Passe o mouse ⓘ</span>
                 </div>
-                ${roleDuelistas.map(p => renderDepthPlayerItemHtml(p, 'Duelista')).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma duelista cadastrada</span>'}
+                ${roleDuelistas.map(p => renderDepthPlayerItemHtml(p, 'Duelista', p.isSub ? (p.subIndex ?? 0) : null)).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma duelista escalada</span>'}
               </div>
 
               <!-- O PORQUÊ ESTRATÉGICO (MOTIVO TÁTICO) -->
@@ -8261,7 +8376,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-xs font-tactical font-black text-purple-400 uppercase tracking-wider truncate">☁️ Controladoras</span>
                 </div>
                 <span class="text-[9px] font-mono text-purple-300 bg-purple-950/70 border border-purple-500/30 px-1.5 py-0.2 rounded font-bold flex-shrink-0">
-                  ${roleControladoras.length} no Roster
+                  ${roleControladoras.length} na Equipe
                 </span>
               </div>
 
@@ -8269,7 +8384,7 @@ function renderTeamAnalyticsView() {
               <div class="my-2 bg-[#120b17] p-2 rounded-lg border border-purple-500/20">
                 <span class="text-[9px] uppercase font-tactical text-purple-300 font-bold block">Status da Função:</span>
                 <span class="text-[11px] text-white font-bold block mt-0.5 break-words">
-                  ${roleControladoras.length >= 2 ? '🟢 Pilar Estratégico Seguro' : '⚠️ Função Mais Crítica (Sem Margem de Erro)'}
+                  ${roleControladoras.length >= 2 ? '🟢 Pilar Estratégico Seguro' : (roleControladoras.length === 1 ? '⚠️ Função Crítica (Sem Margem de Erro)' : '🔴 Sem Controladora Escalada')}
                 </span>
               </div>
 
@@ -8279,7 +8394,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-[9px] uppercase font-tactical text-gray-400 block">Jogadoras Aptas:</span>
                   <span class="text-[8px] font-mono text-purple-400/80 bg-purple-950/40 px-1 py-0.2 rounded border border-purple-500/20">Passe o mouse ⓘ</span>
                 </div>
-                ${roleControladoras.map(p => renderDepthPlayerItemHtml(p, 'Controladora')).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma controladora cadastrada</span>'}
+                ${roleControladoras.map(p => renderDepthPlayerItemHtml(p, 'Controladora', p.isSub ? (p.subIndex ?? 0) : null)).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma controladora escalada</span>'}
               </div>
 
               <!-- O PORQUÊ ESTRATÉGICO (MOTIVO TÁTICO) -->
@@ -8296,7 +8411,7 @@ function renderTeamAnalyticsView() {
               <div class="mt-2 bg-[#0d141f] p-2 rounded-lg border border-[#182638] text-[10px] space-y-0.5">
                 <b class="text-amber-400 block font-tactical">Plano de Contingência:</b>
                 <p class="text-gray-400 leading-relaxed break-words">
-                  A ausência da controladora é fatal. As jogadoras reservas devem manter Viper (Breeze/Icebox) e Omen (Ascent/Haven) calibrados nos seus 5 slots flex para rotação imediata.
+                  A ausência da controladora é fatal. As jogadoras reservas devem manter Viper (Breeze/Icebox) e Omen (Ascent/Haven) calibrados nos seus slots flex para rotação imediata.
                 </p>
               </div>
             </div>
@@ -8317,7 +8432,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-xs font-tactical font-black text-sky-400 uppercase tracking-wider truncate">👁️ Iniciadoras</span>
                 </div>
                 <span class="text-[9px] font-mono text-sky-300 bg-sky-950/70 border border-sky-500/30 px-1.5 py-0.2 rounded font-bold flex-shrink-0">
-                  ${roleIniciadoras.length} no Roster
+                  ${roleIniciadoras.length} na Equipe
                 </span>
               </div>
 
@@ -8325,7 +8440,7 @@ function renderTeamAnalyticsView() {
               <div class="my-2 bg-[#0a141b] p-2 rounded-lg border border-sky-500/20">
                 <span class="text-[9px] uppercase font-tactical text-sky-300 font-bold block">Status da Função:</span>
                 <span class="text-[11px] text-white font-bold block mt-0.5 break-words">
-                  ${roleIniciadoras.length >= 2 ? '🟢 Cobertura Tática de Alto Nível' : '⚖️ Equilíbrio Saudável'}
+                  ${roleIniciadoras.length >= 2 ? '🟢 Cobertura Tática de Alto Nível' : (roleIniciadoras.length === 1 ? '⚖️ Equilíbrio Saudável' : '🔴 Sem Iniciadora Escalada')}
                 </span>
               </div>
 
@@ -8335,7 +8450,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-[9px] uppercase font-tactical text-gray-400 block">Jogadoras Aptas:</span>
                   <span class="text-[8px] font-mono text-sky-400/80 bg-sky-950/40 px-1 py-0.2 rounded border border-sky-500/20">Passe o mouse ⓘ</span>
                 </div>
-                ${roleIniciadoras.map(p => renderDepthPlayerItemHtml(p, 'Iniciadora')).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma iniciadora cadastrada</span>'}
+                ${roleIniciadoras.map(p => renderDepthPlayerItemHtml(p, 'Iniciadora', p.isSub ? (p.subIndex ?? 0) : null)).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma iniciadora escalada</span>'}
               </div>
 
               <!-- O PORQUÊ ESTRATÉGICO (MOTIVO TÁTICO) -->
@@ -8373,7 +8488,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-xs font-tactical font-black text-amber-400 uppercase tracking-wider truncate">🛡️ Sentinelas</span>
                 </div>
                 <span class="text-[9px] font-mono text-amber-300 bg-amber-950/70 border border-amber-500/30 px-1.5 py-0.2 rounded font-bold flex-shrink-0">
-                  ${roleSentinelas.length} no Roster
+                  ${roleSentinelas.length} na Equipe
                 </span>
               </div>
 
@@ -8381,7 +8496,7 @@ function renderTeamAnalyticsView() {
               <div class="my-2 bg-[#17120a] p-2 rounded-lg border border-amber-500/20">
                 <span class="text-[9px] uppercase font-tactical text-amber-300 font-bold block">Status da Função:</span>
                 <span class="text-[11px] text-white font-bold block mt-0.5 break-words">
-                  ${roleSentinelas.length >= 2 ? '🟢 Ancoragem & Retenção Sólida' : '⚖️ Especialista Dedicada'}
+                  ${roleSentinelas.length >= 2 ? '🟢 Ancoragem & Retenção Sólida' : (roleSentinelas.length === 1 ? '⚖️ Especialista Dedicada' : '🔴 Sem Sentinela Escalada')}
                 </span>
               </div>
 
@@ -8391,7 +8506,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-[9px] uppercase font-tactical text-gray-400 block">Jogadoras Aptas:</span>
                   <span class="text-[8px] font-mono text-amber-400/80 bg-amber-950/40 px-1 py-0.2 rounded border border-amber-500/20">Passe o mouse ⓘ</span>
                 </div>
-                ${roleSentinelas.map(p => renderDepthPlayerItemHtml(p, 'Sentinela')).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma sentinela cadastrada</span>'}
+                ${roleSentinelas.map(p => renderDepthPlayerItemHtml(p, 'Sentinela', p.isSub ? (p.subIndex ?? 0) : null)).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma sentinela escalada</span>'}
               </div>
 
               <!-- O PORQUÊ ESTRATÉGICO (MOTIVO TÁTICO) -->
@@ -8429,7 +8544,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-xs font-tactical font-black text-emerald-400 uppercase tracking-wider truncate">🔄 Flex & Suplentes</span>
                 </div>
                 <span class="text-[9px] font-mono text-emerald-300 bg-emerald-950/70 border border-emerald-500/30 px-1.5 py-0.2 rounded font-bold flex-shrink-0">
-                  ${reservas.length} ${reservas.length === 1 ? 'Reserva' : 'Reservas'} • 3 Flex Cada
+                  ${teamReservas.length} ${teamReservas.length === 1 ? 'Reserva' : 'Reservas'} • 3 Flex Cada
                 </span>
               </div>
 
@@ -8437,7 +8552,7 @@ function renderTeamAnalyticsView() {
               <div class="my-2 bg-[#081510] p-2 rounded-lg border border-emerald-500/20">
                 <span class="text-[9px] uppercase font-tactical text-emerald-300 font-bold block">Status da Função:</span>
                 <span class="text-[11px] text-white font-bold block mt-0.5 break-words">
-                  ⚡ Alta Adaptabilidade (${reservas.length * 3} Slots Flex Disponíveis)
+                  ${teamReservas.length > 0 ? `⚡ Alta Adaptabilidade (${teamReservas.length * 3} Slots Flex Disponíveis)` : '⚠️ Nenhuma Reserva Escalada'}
                 </span>
               </div>
 
@@ -8447,7 +8562,7 @@ function renderTeamAnalyticsView() {
                   <span class="text-[9px] uppercase font-tactical text-gray-400 block">Reservas Configuradas:</span>
                   <span class="text-[8px] font-mono text-emerald-400/80 bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-500/20">Passe o mouse ⓘ</span>
                 </div>
-                ${reservas.map((p, rIdx) => renderDepthPlayerItemHtml(p, 'Reserva', rIdx)).join('') || '<span class="text-xs text-gray-500 block py-1">Sem reservas configuradas</span>'}
+                ${teamReservas.map((p, rIdx) => renderDepthPlayerItemHtml(p, 'Reserva', p.subIndex ?? rIdx)).join('') || '<span class="text-xs text-gray-500 block py-1">Nenhuma reserva escalada nesta equipe</span>'}
               </div>
 
               <!-- O PORQUÊ ESTRATÉGICO (MOTIVO TÁTICO) -->
@@ -8456,15 +8571,19 @@ function renderTeamAnalyticsView() {
                   <span>💡</span> O "Porquê" Estratégico:
                 </span>
                 <p class="text-[11px] text-gray-300 leading-relaxed font-sans break-words">
-                  Cada mapa exige um arquétipo diferente: Sunset pede duplo iniciador, Bind se beneficia de dupla controladora. Ter <b>${reservas.length} reservas preparadas com 3 bonecos flex cada (${reservas.length * 3} opções ao todo)</b> permite mudar a composição para surpreender os adversários sem quebrar a estrutura da equipe.
+                  ${teamReservas.length > 0 
+                    ? `Cada mapa exige um arquétipo diferente: Sunset pede duplo iniciador, Bind se beneficia de dupla controladora. Ter <b>${teamReservas.length} reservas preparadas com 3 bonecos flex cada (${teamReservas.length * 3} opções ao todo)</b> permite mudar a composição para surpreender os adversários sem quebrar a estrutura da equipe.`
+                    : 'A equipe atual não possui jogadoras reservas escaladas no banco. Ter reservas configuradas com slots Flex permite variações de arquétipo tático sem quebrar a estrutura do time.'}
                 </p>
               </div>
 
               <!-- RISCO DE AUSÊNCIA & CONTINGÊNCIA -->
               <div class="mt-2 bg-[#0d141f] p-2 rounded-lg border border-[#182638] text-[10px] space-y-0.5">
-                <b class="text-amber-400 block font-tactical">Proteção Total:</b>
+                <b class="text-amber-400 block font-tactical">${teamReservas.length > 0 ? 'Proteção Total:' : 'Alerta Tático:'}</b>
                 <p class="text-gray-400 leading-relaxed break-words">
-                  Com ${reservas.length * 3} opções de adaptação no banco de reservas, o time está blindado contra ausências de última hora, cansaço ou penalidades em torneios longos.
+                  ${teamReservas.length > 0
+                    ? `Com ${teamReservas.length * 3} opções de adaptação no banco de reservas, o time está blindado contra ausências de última hora, cansaço ou penalidades em torneios longos.`
+                    : 'Sem reservas escaladas, qualquer ausência ou desfalque de jogadora titular forçará o time a jogar em desvantagem numérica ou improvisar sem treino prévio.'}
                 </p>
               </div>
             </div>
@@ -8864,7 +8983,7 @@ function renderTeamAnalyticsView() {
         <div class="flex items-center justify-between pb-2 border-b border-[#182638] flex-wrap gap-2">
           <div class="min-w-0 flex-1">
             <h3 class="text-sm sm:text-base font-tactical font-black text-white uppercase tracking-wider flex items-center gap-2 flex-wrap break-words">
-              <span>👥</span> Desempenho e Conforto Individual do Elenco (${(state.roster || []).length} Jogadoras)
+              <span>👥</span> Desempenho e Conforto Individual do Elenco (${allPlayers.length} Jogadoras)
             </h3>
             <p class="text-xs text-gray-400 break-words">
               ${isAllMapsMode 
