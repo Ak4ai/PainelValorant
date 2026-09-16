@@ -1154,7 +1154,14 @@ function renderPlayersList() {
       </div>
     ` : '';
 
-    const foundRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (player.name || '').trim().toLowerCase());
+    const pCleanLower = (player.name || '').trim().toLowerCase();
+    const pCleanNick = pCleanLower.split('#')[0].trim();
+    const foundRoster = (state.roster || []).find(r => {
+      if (!r || !r.name) return false;
+      const rLower = r.name.trim().toLowerCase();
+      const rNick = rLower.split('#')[0].trim();
+      return rLower === pCleanLower || (pCleanNick && rNick === pCleanNick);
+    });
     let mapMatchCount = 0;
     if (foundRoster) {
       if (foundRoster.mapDetails?.[activeMap.id]?.matches) {
@@ -1429,7 +1436,14 @@ function renderPlayersList() {
       ` : '';
 
       const rRatingVisual = getRatingVisuals(player.rendimento);
-      const foundRoster = (state.roster || []).find(r => r.name && r.name.toLowerCase() === (player.name || '').trim().toLowerCase());
+      const pCleanLower = (player.name || '').trim().toLowerCase();
+      const pCleanNick = pCleanLower.split('#')[0].trim();
+      const foundRoster = (state.roster || []).find(r => {
+        if (!r || !r.name) return false;
+        const rLower = r.name.trim().toLowerCase();
+        const rNick = rLower.split('#')[0].trim();
+        return rLower === pCleanLower || (pCleanNick && rNick === pCleanNick);
+      });
       let rMatchCount = 0;
       if (foundRoster) {
         if (foundRoster.mapDetails?.[activeMap.id]?.matches) {
@@ -3173,7 +3187,39 @@ function getPlayerProfileData(playerIndex) {
   const rawName = (player.name || '').trim();
   const cleanName = rawName || (playerIndex < 5 ? `Player ${playerIndex + 1}` : `Reserva ${playerIndex - 4}`);
 
-  const inRoster = (state.roster || []).find(r => r.name.toLowerCase() === cleanName.toLowerCase()) || {};
+  const cleanNameLower = cleanName.toLowerCase();
+  const cleanNickLower = cleanNameLower.split('#')[0].trim();
+
+  const inRoster = (state.roster || []).find(r => {
+    if (!r || !r.name) return false;
+    const rLower = r.name.trim().toLowerCase();
+    const rNick = rLower.split('#')[0].trim();
+    return rLower === cleanNameLower || (cleanNickLower && rNick === cleanNickLower);
+  }) || {};
+
+  let photoUrl = player.photoUrl || inRoster.photoUrl || '';
+  if (!photoUrl && cleanName) {
+    if (state.lineups) {
+      for (const mId of Object.keys(state.lineups)) {
+        const mPlayers = state.lineups[mId];
+        if (Array.isArray(mPlayers)) {
+          const found = mPlayers.find(p => {
+            if (!p || !p.name || !p.photoUrl) return false;
+            const pLower = p.name.trim().toLowerCase();
+            const pNick = pLower.split('#')[0].trim();
+            return pLower === cleanNameLower || (cleanNickLower && pNick === cleanNickLower);
+          });
+          if (found && found.photoUrl) {
+            photoUrl = found.photoUrl;
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (photoUrl && !player.photoUrl) {
+    player.photoUrl = photoUrl;
+  }
 
   const kd = player.kd || inRoster.kd || '1.00';
   const mostPlayed = (Array.isArray(player.mostPlayed) && player.mostPlayed.length > 0)
@@ -3242,6 +3288,7 @@ function getPlayerProfileData(playerIndex) {
     player,
     cleanName,
     hasTag: cleanName.includes('#'),
+    photoUrl,
     kd,
     mostPlayed,
     role,
@@ -3610,7 +3657,7 @@ window.renderPlayerProfileModal = function() {
               onclick="window.openPlayerAvatarModal(${data.playerIndex})"
               title="Clique para alterar a foto de perfil de ${escapeHtml(data.cleanName)}"
               class="relative group cursor-pointer rounded-2xl overflow-hidden focus:outline-none ring-2 ring-transparent hover:ring-[#ff4655] transition-all">
-        <img src="${avatarSrc}" alt="${escapeHtml(data.cleanName)}" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover bg-black/60 border-2 shadow-lg" style="border-color: ${agentColor}">
+        <img src="${avatarSrc}" onerror="this.onerror=null;this.src='${agentIcon}';" alt="${escapeHtml(data.cleanName)}" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover bg-black/60 border-2 shadow-lg" style="border-color: ${agentColor}">
         <div class="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200">
           <span class="text-xs sm:text-base">📷</span>
           <span class="text-[8px] font-tactical font-black uppercase tracking-wider text-amber-300">Alterar</span>
@@ -4692,8 +4739,36 @@ window.openPlayerAvatarModal = function(playerIndex) {
   if (!player) return;
 
   state.playerAvatarModal.playerIndex = playerIndex;
-  const foundRoster = (state.roster || []).find(r => r.name && player.name && r.name.toLowerCase() === player.name.trim().toLowerCase());
-  const currentPhoto = player.photoUrl || (foundRoster?.photoUrl) || '';
+  const pName = (player.name || '').trim().toLowerCase();
+  const pNick = pName.split('#')[0].trim();
+  const foundRoster = (state.roster || []).find(r => {
+    if (!r || !r.name) return false;
+    const rName = r.name.trim().toLowerCase();
+    const rNick = rName.split('#')[0].trim();
+    return rName === pName || (pNick && rNick === pNick);
+  });
+
+  let currentPhoto = player.photoUrl || (foundRoster?.photoUrl) || '';
+  if (!currentPhoto && pName) {
+    if (state.lineups) {
+      for (const mId of Object.keys(state.lineups)) {
+        const mPlayers = state.lineups[mId];
+        if (Array.isArray(mPlayers)) {
+          const found = mPlayers.find(p => {
+            if (!p || !p.name || !p.photoUrl) return false;
+            const mpName = p.name.trim().toLowerCase();
+            const mpNick = mpName.split('#')[0].trim();
+            return mpName === pName || (pNick && mpNick === pNick);
+          });
+          if (found && found.photoUrl) {
+            currentPhoto = found.photoUrl;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   const fallbackAg = player.titular || player.flex1 || player.mostPlayed?.[0] || 'Killjoy';
   const fallbackIcon = getAgentIcon(fallbackAg);
 
@@ -4843,9 +4918,14 @@ window.saveSelectedAvatar = function() {
   // Também propaga para todos os mapas e para o roster
   if (player.name && player.name.trim()) {
     const clean = player.name.trim().toLowerCase();
+    const cleanNick = clean.split('#')[0].trim();
     (state.roster || []).forEach(r => {
-      if (r.name && r.name.toLowerCase() === clean) {
-        r.photoUrl = player.photoUrl;
+      if (r && r.name) {
+        const rName = r.name.trim().toLowerCase();
+        const rNick = rName.split('#')[0].trim();
+        if (rName === clean || (cleanNick && rNick === cleanNick)) {
+          r.photoUrl = player.photoUrl;
+        }
       }
     });
 
@@ -4853,8 +4933,12 @@ window.saveSelectedAvatar = function() {
       const mPlayers = state.lineups[mId];
       if (Array.isArray(mPlayers)) {
         mPlayers.forEach(mp => {
-          if (mp.name && mp.name.toLowerCase() === clean) {
-            mp.photoUrl = player.photoUrl;
+          if (mp && mp.name) {
+            const mpName = mp.name.trim().toLowerCase();
+            const mpNick = mpName.split('#')[0].trim();
+            if (mpName === clean || (cleanNick && mpNick === cleanNick)) {
+              mp.photoUrl = player.photoUrl;
+            }
           }
         });
       }
@@ -4881,17 +4965,26 @@ window.resetPlayerAvatarToDefault = function() {
     delete player.photoUrl;
     if (player.name) {
       const clean = player.name.trim().toLowerCase();
+      const cleanNick = clean.split('#')[0].trim();
       (state.roster || []).forEach(r => {
-        if (r.name && r.name.toLowerCase() === clean) {
-          delete r.photoUrl;
+        if (r && r.name) {
+          const rName = r.name.trim().toLowerCase();
+          const rNick = rName.split('#')[0].trim();
+          if (rName === clean || (cleanNick && rNick === cleanNick)) {
+            delete r.photoUrl;
+          }
         }
       });
       Object.keys(state.lineups).forEach(mId => {
         const mPlayers = state.lineups[mId];
         if (Array.isArray(mPlayers)) {
           mPlayers.forEach(mp => {
-            if (mp.name && mp.name.toLowerCase() === clean) {
-              delete mp.photoUrl;
+            if (mp && mp.name) {
+              const mpName = mp.name.trim().toLowerCase();
+              const mpNick = mpName.split('#')[0].trim();
+              if (mpName === clean || (cleanNick && mpNick === cleanNick)) {
+                delete mp.photoUrl;
+              }
             }
           });
         }
